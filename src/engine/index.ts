@@ -7,3 +7,8 @@ export * from './montecarlo';
 export * from './outs';
 export * from './potodds';
 export * from './shortcuts';
+export * from './ev';
+export * from './implied';
+export * from './combos';
+export * from './ranges';
+export * from './profile';

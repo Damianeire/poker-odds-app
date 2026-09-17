@@ -140,9 +140,62 @@ body.four-colour .card.suit-s { color: #111; }
 .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
 .panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
 .panel table { margin-bottom: 10px; }
+.panel-wide { grid-column: 1 / -1; }
 .decision { font-weight: 600; margin: 8px 0; }
 .decision.ok { color: var(--ok); }
 .decision.miss { color: var(--miss); }
+.profile-presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.profile-presets button.active { border-color: var(--accent); color: var(--fg); }
+.profile-sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.profile-sliders label { gap: 6px; }
+.profile-sliders input[type='range'] { width: 100%; accent-color: var(--accent); }
 
 /* Tables */
 .tables { display: grid; gap: 20px; }
+
+/* Generic */
+.toggle { display: flex; gap: 6px; align-items: center; font-size: 14px; color: var(--fg-muted); }
+.link { background: transparent; border: none; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; }
+.link:hover { border-color: transparent; }
+.link.small { font-size: 12px; margin-left: 8px; }
+.lock-note { color: var(--fg-muted); font-size: 13px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; }
+.due-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ghost { position: relative; height: 6px; margin-top: 8px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
+.ghost-bar { position: absolute; inset: 0 auto 0 0; background: var(--fg-muted); opacity: 0.5; }
+.ghost span { position: absolute; right: 0; top: 8px; font-family: var(--mono); font-size: 11px; color: var(--fg-muted); }
+
+/* Learn */
+.learn-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; }
+@media (max-width: 800px) { .learn-layout { grid-template-columns: 1fr; } }
+.learn-nav { display: flex; flex-direction: column; gap: 2px; }
+.learn-nav button { display: flex; gap: 8px; align-items: center; justify-content: flex-start; background: transparent; border: 1px solid transparent; color: var(--fg-muted); text-align: left; }
+.learn-nav button.active { color: var(--fg); background: var(--bg-2); border-color: var(--line); }
+.learn-nav .mod { font-family: var(--mono); font-size: 11px; color: var(--fg-muted); width: 18px; }
+.learn-page h2 { margin: 0 0 4px; }
+.summary-line { color: var(--fg-muted); margin: 0 0 20px; }
+.formula { background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; margin: 12px 0; }
+.formula-label { font-size: 12px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.formula-value { margin-top: 6px; font-family: var(--mono); color: var(--accent); }
+.learn-table { margin: 16px 0; }
+.learn-table figcaption { color: var(--fg-muted); font-size: 13px; margin-bottom: 6px; }
+.example { background: var(--bg-2); border-left: 3px solid var(--accent); border-radius: 4px; padding: 10px 14px; margin: 12px 0; }
+.terms { margin: 0; }
+.terms dt { font-weight: 600; margin-top: 10px; }
+.terms dd { margin: 2px 0 0; color: var(--fg-muted); }
+.page-drills { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 12px; }
+.page-drills ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.locked-label { color: var(--fg-muted); }
+
+/* Timed mode */
+.timed-start { max-width: 560px; }
+.timed-progress { color: var(--fg-muted); font-size: 13px; margin-bottom: 6px; }
+
+/* Bankroll mode */
+.bankroll-start { max-width: 560px; }
+.bankroll-header { display: flex; gap: 20px; align-items: baseline; margin-bottom: 8px; font-size: 13px; color: var(--fg-muted); }
+.bankroll-stack { font-family: var(--mono); font-size: 16px; color: var(--fg); }
+
+/* Progress */
+.progress-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; align-items: start; }
+.calibration-score { font-family: var(--mono); font-size: 28px; margin: 4px 0; }
+.progress-actions { display: flex; gap: 10px; margin-top: 8px; }

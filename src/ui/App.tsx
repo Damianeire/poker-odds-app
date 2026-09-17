@@ -1,19 +1,29 @@
 import { useEffect, useState } from 'preact/hooks';
 import { DrillView } from './DrillView';
+import { LearnView } from './LearnView';
+import { TimedView } from './TimedView';
+import { BankrollView } from './BankrollView';
 import { SandboxView } from './SandboxView';
 import { TablesView } from './TablesView';
-import { loadSettings, saveSettings, type Settings } from './settings';
+import { ProgressView } from './ProgressView';
+import { useProgress, updateProgress } from './progress';
+import { updateSettings } from '../srs/store';
 
-type Tab = 'drill' | 'sandbox' | 'tables';
+type Tab = 'learn' | 'drill' | 'timed' | 'bankroll' | 'sandbox' | 'tables' | 'progress';
 
 export function App() {
   const [tab, setTab] = useState<Tab>('drill');
-  const [settings, setSettings] = useState<Settings>(() => loadSettings());
+  const [jumpDrill, setJumpDrill] = useState<string | null>(null);
+  const progress = useProgress();
 
   useEffect(() => {
-    document.body.classList.toggle('four-colour', settings.fourColour);
-    saveSettings(settings);
-  }, [settings]);
+    document.body.classList.toggle('four-colour', progress.settings.fourColour);
+  }, [progress.settings.fourColour]);
+
+  const goToDrill = (drillId: string) => {
+    setJumpDrill(drillId);
+    setTab('drill');
+  };
 
   return (
     <div class="app">
@@ -22,9 +32,13 @@ export function App() {
         <nav>
           {(
             [
+              ['learn', 'Learn'],
               ['drill', 'Drill'],
+              ['timed', 'Timed'],
+              ['bankroll', 'Bankroll'],
               ['sandbox', 'Sandbox'],
               ['tables', 'Tables'],
+              ['progress', 'Progress'],
             ] as [Tab, string][]
           ).map(([id, label]) => (
             <button type="button" key={id} class={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
@@ -35,16 +49,22 @@ export function App() {
         <label class="toggle">
           <input
             type="checkbox"
-            checked={settings.fourColour}
-            onChange={(e) => setSettings({ ...settings, fourColour: (e.target as HTMLInputElement).checked })}
+            checked={progress.settings.fourColour}
+            onChange={(e) =>
+              updateProgress((s) => updateSettings(s, { fourColour: (e.target as HTMLInputElement).checked }))
+            }
           />
           Four-colour deck
         </label>
       </header>
       <main>
-        {tab === 'drill' && <DrillView />}
+        {tab === 'learn' && <LearnView onDrill={goToDrill} />}
+        {tab === 'drill' && <DrillView jumpTo={jumpDrill} />}
+        {tab === 'timed' && <TimedView />}
+        {tab === 'bankroll' && <BankrollView />}
         {tab === 'sandbox' && <SandboxView />}
         {tab === 'tables' && <TablesView />}
+        {tab === 'progress' && <ProgressView />}
       </main>
     </div>
   );

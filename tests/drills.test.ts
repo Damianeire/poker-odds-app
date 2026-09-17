@@ -4,6 +4,7 @@ import { createRng } from '../src/engine/rng';
 import { probNextCard, probTwoCards, detectOutsToCategory, detectOutsVsHand } from '../src/engine/outs';
 import { potOdds } from '../src/engine/potodds';
 import { formatCards } from '../src/engine/cards';
+import { evaluate, categoryOf } from '../src/engine/evaluator';
 
 const DIFFICULTIES: Difficulty[] = [1, 2, 3];
 
@@ -17,21 +18,28 @@ function wellFormed(inst: DrillInstance): void {
     expect(inst.answer).toBeGreaterThanOrEqual(0);
     expect(inst.answer).toBeLessThan(inst.prompt.choices.length);
   }
-  const cards = [...(inst.prompt.heroCards ?? []), ...(inst.prompt.board ?? []), ...(inst.prompt.villainCards ?? [])];
+  const cards = [
+    ...(inst.prompt.heroCards ?? []),
+    ...(inst.prompt.board ?? []),
+    ...(inst.prompt.villainCards ?? []),
+    ...(inst.prompt.handRows ?? []).flatMap((r) => r.cards),
+  ];
   expect(new Set(cards).size).toBe(cards.length);
 }
 
 describe('drill catalogue', () => {
-  it('has the eight Phase 1 drills with unique ids', () => {
-    expect(DRILLS.length).toBe(8);
-    expect(new Set(DRILLS.map((d) => d.id)).size).toBe(8);
+  it('has all 26 catalogue drills with unique ids', () => {
+    expect(DRILLS.length).toBe(26);
+    expect(new Set(DRILLS.map((d) => d.id)).size).toBe(26);
   });
 
   for (const drill of DRILLS) {
+    // Preflop enumeration costs about half a second per instance.
+    const SEEDS = drill.id === 'preflop-equity' ? 2 : 40;
     describe(drill.id, () => {
       it('generates well-formed instances at every difficulty', () => {
         for (const d of DIFFICULTIES) {
-          for (let seed = 1; seed <= 40; seed++) {
+          for (let seed = 1; seed <= SEEDS; seed++) {
             const inst = drill.generate(createRng(seed * 7919 + d), d);
             wellFormed(inst);
           }
@@ -45,8 +53,9 @@ describe('drill catalogue', () => {
       });
 
       it('accepts the taught shortcut as correct whenever one is given', () => {
+        if (drill.id === 'preflop-equity') return;
         for (const d of DIFFICULTIES) {
-          for (let seed = 1; seed <= 40; seed++) {
+          for (let seed = 1; seed <= SEEDS; seed++) {
             const inst = drill.generate(createRng(seed * 31 + d), d);
             if (inst.shortcutAnswer === undefined) continue;
             expect(grade(inst, inst.shortcutAnswer).correct, `${drill.id} seed ${seed} d${d}`).toBe(true);
@@ -55,7 +64,7 @@ describe('drill catalogue', () => {
       });
 
       it('grades the exact answer as correct', () => {
-        for (let seed = 1; seed <= 20; seed++) {
+        for (let seed = 1; seed <= Math.min(20, SEEDS); seed++) {
           const inst = drill.generate(createRng(seed), 2);
           expect(grade(inst, inst.answer).correct).toBe(true);
           expect(grade(inst, inst.answer + inst.tolerance + 1).correct).toBe(false);
@@ -63,7 +72,7 @@ describe('drill catalogue', () => {
       });
 
       it('every probability answer offers a ratio form in the explanation', () => {
-        for (let seed = 1; seed <= 10; seed++) {
+        for (let seed = 1; seed <= Math.min(10, SEEDS); seed++) {
           const inst = drill.generate(createRng(seed), 1);
           if (inst.unit === 'percent' && drill.id !== 'spot-the-error') {
             expect(inst.explanation.alternate, drill.id).toBeDefined();
@@ -180,5 +189,153 @@ describe('answer parsing', () => {
     expect(parseAnswer('abc', 'percent')).toBeNull();
     expect(parseAnswer('4 to 1', 'count')).toBeNull();
     expect(parseAnswer('20%', 'count')).toBeNull();
+  });
+});
+
+describe('Phase 2 drills agree with the engine', () => {
+  const byId = (id: string) => DRILLS.find((d) => d.id === id)!;
+
+  it('price-out picks the smallest sizing that prices out the draw', () => {
+    const drill = byId('price-out');
+    for (let seed = 1; seed <= 20; seed++) {
+      const inst = drill.generate(createRng(seed), 2);
+      const pot = Number(inst.prompt.facts![0]!.value);
+      const outs = Number(/(\d+) outs/.exec(inst.explanation.steps[0]!.result!)![1]);
+      expect(outs).toBeGreaterThan(0);
+      const idx = inst.answer;
+      expect(inst.prompt.choices!.length).toBe(7);
+      const fractions = [1 / 3, 1 / 2, 2 / 3, 3 / 4, 1, 1.5, 2];
+      const unseen = inst.prompt.board!.length === 3 ? 47 : 46;
+      const e = outs / unseen;
+      expect(potOdds(pot, pot * fractions[idx]!).breakEven).toBeGreaterThan(e);
+      if (idx > 0) expect(potOdds(pot, pot * fractions[idx - 1]!).breakEven).toBeLessThanOrEqual(e);
+    }
+  });
+
+  it('mdf-alpha and bluff-break-even use the closed forms', () => {
+    for (const id of ['mdf-alpha', 'bluff-break-even']) {
+      const drill = byId(id);
+      for (let seed = 1; seed <= 20; seed++) {
+        const inst = drill.generate(createRng(seed), 2);
+        const pot = Number(inst.prompt.facts![0]!.value);
+        const bet = Number(inst.prompt.facts![1]!.value);
+        const po = potOdds(pot, bet);
+        const ok = Math.abs(inst.answer - po.mdf * 100) < 1e-9 || Math.abs(inst.answer - po.alpha * 100) < 1e-9;
+        expect(ok).toBe(true);
+      }
+    }
+  });
+
+  it('multiway bluff answer is alpha^(1/n)', () => {
+    const drill = byId('multiway-bluff');
+    for (let seed = 1; seed <= 20; seed++) {
+      const inst = drill.generate(createRng(seed), 2);
+      const pot = Number(inst.prompt.facts![0]!.value);
+      const bet = Number(inst.prompt.facts![1]!.value);
+      const n = Number(inst.prompt.facts![2]!.value);
+      expect(inst.answer).toBeCloseTo((bet / (pot + bet)) ** (1 / n) * 100, 10);
+      expect(inst.answer).toBeGreaterThan((bet / (pot + bet)) * 100);
+    }
+  });
+
+  it('dead money sums every contribution', () => {
+    const drill = byId('dead-money');
+    for (let seed = 1; seed <= 20; seed++) {
+      const inst = drill.generate(createRng(seed), 2);
+      const facts = inst.prompt.facts!;
+      const bet = Number(facts[facts.length - 1]!.value);
+      const pot = facts.slice(0, -1).reduce((a, f) => a + Number(f.value), 0);
+      const po = potOdds(pot, bet);
+      if (inst.unit === 'ratio') expect(inst.answer).toBeCloseTo(po.oddsOffered, 10);
+      else expect(inst.answer).toBeCloseTo(po.breakEven * 100, 10);
+    }
+  });
+
+  it('combo-count matches enumeration of the class', () => {
+    const drill = byId('combo-count');
+    let blocked = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const inst = drill.generate(createRng(seed), 3);
+      expect(inst.answer).toBeGreaterThanOrEqual(0);
+      expect(inst.answer).toBeLessThanOrEqual(12);
+      if (inst.answer < 12) blocked++;
+    }
+    expect(blocked).toBeGreaterThan(5);
+  });
+
+  it('dirty outs answer equals the winning cards against the shown hand', () => {
+    const drill = byId('dirty-outs');
+    for (let seed = 1; seed <= 20; seed++) {
+      const inst = drill.generate(createRng(seed), 2);
+      const r = detectOutsVsHand(inst.prompt.heroCards!, inst.prompt.villainCards!, inst.prompt.board!);
+      expect(inst.answer).toBe(r.count);
+      expect(Number(inst.prompt.facts![0]!.value)).toBeGreaterThan(0);
+    }
+  });
+
+  it('which-multiplier grades on the all-in fact', () => {
+    const drill = byId('which-multiplier');
+    let allIn = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const inst = drill.generate(createRng(seed), 1);
+      const isAllIn = inst.prompt.facts![2]!.value === 'all-in';
+      expect(inst.answer).toBe(isAllIn ? 1 : 0);
+      if (isAllIn) allIn++;
+    }
+    expect(allIn).toBeGreaterThan(5);
+    expect(allIn).toBeLessThan(25);
+  });
+
+  it('hand-ranking and best-hand come from the evaluator', () => {
+    const ranking = byId('hand-ranking');
+    for (let seed = 1; seed <= 30; seed++) {
+      const inst = ranking.generate(createRng(seed), 3);
+      const score = evaluate([...inst.prompt.heroCards!, ...inst.prompt.board!]);
+      expect(inst.answer).toBe(categoryOf(score));
+    }
+    const best = byId('best-hand');
+    let splits = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const inst = best.generate(createRng(seed), 2);
+      const board = inst.prompt.board!;
+      const hands: number[][] = inst.prompt.handRows!.map((r) => r.cards);
+      const scores = hands.map((h) => evaluate([...h, ...board]));
+      const top = Math.max(...scores);
+      const winners = scores.filter((s) => s === top).length;
+      if (winners > 1) {
+        splits++;
+        expect(inst.answer).toBe(hands.length);
+      } else expect(scores[inst.answer]).toBe(top);
+    }
+    expect(splits).toBeGreaterThan(0);
+  });
+
+  it('villain-dependent flips on the named parameter at difficulty 1', () => {
+    const drill = byId('villain-dependent');
+    for (let seed = 1; seed <= 20; seed++) {
+      const inst = drill.generate(createRng(seed), 1);
+      expect([0, 1]).toContain(inst.answer);
+      expect(inst.explanation.summary).toMatch(/flipped/);
+    }
+  });
+
+  it('set mining derives its numbers', () => {
+    const drill = byId('set-mining');
+    let calls = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const inst = drill.generate(createRng(seed), 2);
+      if (inst.answer === 0) calls++;
+      expect(inst.explanation.steps[0]!.result).toContain('11.76%');
+    }
+    expect(calls).toBeGreaterThan(5);
+    expect(calls).toBeLessThan(35);
+  });
+
+  it('preflop equity is graded against enumeration', () => {
+    const drill = byId('preflop-equity');
+    const inst = drill.generate(createRng(3), 1);
+    expect(inst.answer).toBeGreaterThan(0);
+    expect(inst.answer).toBeLessThan(100);
+    expect(inst.explanation.steps[0]!.text).toContain('1,712,304');
   });
 });

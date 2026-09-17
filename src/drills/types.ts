@@ -20,6 +20,8 @@ export interface PromptSpec {
   heroCards?: Card[];
   board?: Card[];
   villainCards?: Card[];
+  /** Several labeled hands shown as their own card rows, e.g. a multiway showdown. */
+  handRows?: { label: string; cards: Card[] }[];
   /** Named figures given to the user (pot, bet, outs...). */
   facts?: Fact[];
   /** If present, the answer is the index of the chosen option. */

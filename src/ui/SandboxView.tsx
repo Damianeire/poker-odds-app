@@ -6,6 +6,10 @@ import { potOdds } from '../engine/potodds';
 import { ruleOf2, ruleOf4, solomon, percentToOddsAgainst, formatOddsAgainst } from '../engine/shortcuts';
 import { runoutCount, type EquityResult } from '../engine/enumerate';
 import { choose } from '../engine/math';
+import { createRng, seedFromString } from '../engine/rng';
+import { topRange, rangeCombos, equityVsRange, type RangeEquity } from '../engine/ranges';
+import { PROFILE_PRESETS, profiledCall, type VillainProfile } from '../engine/profile';
+import { num } from '../drills/types';
 import { DRAW_TARGETS } from '../drills/deal';
 import { computeEquity } from './equityClient';
 import { CardRow } from './Card';
@@ -47,6 +51,13 @@ export function SandboxView() {
   const [equity, setEquity] = useState<EquityResult | null>(null);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [equityError, setEquityError] = useState<string | null>(null);
+  const [rangePctText, setRangePctText] = useState('20');
+  const [rangeEquity, setRangeEquity] = useState<RangeEquity | null>(null);
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const [rangeError, setRangeError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<VillainProfile>({ rangeWidth: 0.2, foldFrequency: 0.4, payoffPropensity: 0.5, aggression: 0.3 });
+  const [presetName, setPresetName] = useState<string | null>(null);
+  const [playersBehindText, setPlayersBehindText] = useState('0');
 
   const parsed = useMemo(() => parseInputs(heroText, boardText, villainText), [heroText, boardText, villainText]);
   const { hero, board, villain } = parsed;
@@ -104,9 +115,50 @@ export function SandboxView() {
   const villNow = ready && villain.length === 2 && board.length >= 3 ? describeScore(evaluate([...villain, ...board])) : null;
   const ahead = ready && villain.length === 2 && board.length >= 3 ? heroAhead(hero, villain, board) : null;
 
+  // Equity against a range, a minimal Phase 2 stand-in for a full range picker:
+  // whenever no specific villain hand is given, treat the range width slider
+  // in the villain profile panel as the villain's holdings.
+  const rangeFraction = Math.min(1, Math.max(0.01, (Number(rangePctText) || 0) / 100));
+  const rangeKey = ready && villain.length !== 2 && [0, 3, 4, 5].includes(board.length) ? `${formatCards(hero)}|${formatCards(board)}|${rangeFraction}` : '';
+  useEffect(() => {
+    setRangeEquity(null);
+    setRangeError(null);
+    if (!rangeKey) {
+      setRangeLoading(false);
+      return;
+    }
+    setRangeLoading(true);
+    const timer = setTimeout(() => {
+      try {
+        const range = topRange(rangeFraction);
+        const combos = rangeCombos(range, [...hero, ...board]);
+        const rng = createRng(seedFromString(rangeKey));
+        setRangeEquity(equityVsRange(hero, combos, board, { rng, trials: 20000 }));
+      } catch (e) {
+        setRangeError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRangeLoading(false);
+      }
+    }, 30);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeKey]);
+
   const heroEquity = equity ? equity.hands[0]!.equity : null;
-  const compareEquity = heroEquity ?? (probs ? probs.byRiver : null);
-  const compareLabel = heroEquity !== null ? 'exact equity' : probs ? (probs.cardsToCome === 2 ? 'chance to hit by the river' : 'chance to hit on the next card') : null;
+  const compareEquity = heroEquity ?? rangeEquity?.equity ?? (probs ? probs.byRiver : null);
+  const compareLabel =
+    heroEquity !== null
+      ? 'exact equity'
+      : rangeEquity
+        ? `equity vs top ${rangePctText}%`
+        : probs
+          ? probs.cardsToCome === 2
+            ? 'chance to hit by the river'
+            : 'chance to hit on the next card'
+          : null;
+
+  const playersBehind = Math.max(0, Math.floor(Number(playersBehindText) || 0));
+  const profileResult = potOk && compareEquity !== null ? profiledCall(profile, pot, bet, compareEquity, playersBehind) : null;
 
   return (
     <div class="sandbox">
@@ -262,7 +314,39 @@ export function SandboxView() {
 
           <section class="panel">
             <h3>Exact equity</h3>
-            {villain.length !== 2 && <p class="muted">Enter a villain hand to enumerate every runout. Ranges arrive in Phase 2.</p>}
+            {villain.length !== 2 && (
+              <>
+                <label>
+                  Villain range, top
+                  <input value={rangePctText} inputMode="numeric" onInput={(e) => setRangePctText((e.target as HTMLInputElement).value)} />
+                  %
+                </label>
+                {rangeLoading && <p class="muted">Weighing every combo in the range equally...</p>}
+                {rangeError && <p class="error">{rangeError}</p>}
+                {rangeEquity && (
+                  <table>
+                    <tbody>
+                      <tr>
+                        <th>Equity vs top {rangePctText}%</th>
+                        <td>
+                          {pct(rangeEquity.equity, 2)}
+                          {rangeEquity.method === 'montecarlo' ? ` ± ${pct(rangeEquity.ci95, 2)}` : ''}
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>Combos in range</th>
+                        <td>{rangeEquity.combos}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
+                <Working>
+                  <Step
+                    text={`Every combo in the top ${rangePctText}% of starting hands, by the static ranking, is weighted equally. ${board.length >= 3 ? 'Each is enumerated exactly against every remaining runout.' : 'Preflop this is sampled rather than enumerated.'}`}
+                  />
+                </Working>
+              </>
+            )}
             {villain.length === 2 && (
               <>
                 {progress && !equity && (
@@ -344,7 +428,7 @@ export function SandboxView() {
                 {compareEquity !== null && compareLabel && (
                   <p class={`decision ${compareEquity > po.breakEven ? 'ok' : 'miss'}`}>
                     {compareEquity > po.breakEven ? 'Call' : 'Fold'}: {compareLabel} {pct(compareEquity)} against {pct(po.breakEven)} needed.
-                    {heroEquity === null && probs && probs.cardsToCome === 2 && ' This uses the two-card figure, which only applies if villain is all-in.'}
+                    {heroEquity === null && rangeEquity === null && probs && probs.cardsToCome === 2 && ' This uses the two-card figure, which only applies if villain is all-in.'}
                   </p>
                 )}
                 <Working>
@@ -353,6 +437,154 @@ export function SandboxView() {
                   <Step text="Odds offered: what is in the middle against what you pay." formula={`(${pot} + ${bet}) : ${bet}`} result={formatOddsAgainst(po.oddsOffered, 2)} />
                   <Step text="Minimum defence frequency: pot over pot plus bet. A heads-up construct." formula={`${pot} / (${pot} + ${bet})`} result={pct(po.mdf, 2)} />
                   <Step text="Alpha: how often a bluff of this size must work." formula={`${bet} / (${pot} + ${bet})`} result={pct(po.alpha, 2)} />
+                </Working>
+              </>
+            )}
+          </section>
+
+          <section class="panel panel-wide">
+            <h3>Villain profile</h3>
+            <p class="muted">
+              Four estimated parameters feed the terms already above: range width sets the equity comparison, fold frequency and
+              payoff propensity feed implied odds, and aggression feeds a raise-behind discount. The output is only as precise
+              as these inputs.
+            </p>
+            <div class="profile-presets">
+              {PROFILE_PRESETS.map((p) => (
+                <button
+                  type="button"
+                  key={p.name}
+                  class={presetName === p.name ? 'active' : ''}
+                  title={p.note}
+                  onClick={() => {
+                    setPresetName(p.name);
+                    setProfile({ rangeWidth: p.rangeWidth, foldFrequency: p.foldFrequency, payoffPropensity: p.payoffPropensity, aggression: p.aggression });
+                    setRangePctText(String(Math.round(p.rangeWidth * 100)));
+                  }}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            <div class="profile-sliders">
+              <label>
+                Range width: top {Math.round(profile.rangeWidth * 100)}%
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  value={profile.rangeWidth * 100}
+                  onInput={(e) => {
+                    const v = Number((e.target as HTMLInputElement).value) / 100;
+                    setPresetName(null);
+                    setProfile({ ...profile, rangeWidth: v });
+                    setRangePctText(String(Math.round(v * 100)));
+                  }}
+                />
+              </label>
+              <label>
+                Fold frequency to a bet: {pct(profile.foldFrequency, 0)}
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={profile.foldFrequency * 100}
+                  onInput={(e) => {
+                    setPresetName(null);
+                    setProfile({ ...profile, foldFrequency: Number((e.target as HTMLInputElement).value) / 100 });
+                  }}
+                />
+              </label>
+              <label>
+                Payoff propensity: {profile.payoffPropensity.toFixed(2)}x pot when you hit
+                <input
+                  type="range"
+                  min={0}
+                  max={200}
+                  value={profile.payoffPropensity * 100}
+                  onInput={(e) => {
+                    setPresetName(null);
+                    setProfile({ ...profile, payoffPropensity: Number((e.target as HTMLInputElement).value) / 100 });
+                  }}
+                />
+              </label>
+              <label>
+                Aggression: {pct(profile.aggression, 0)}
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={profile.aggression * 100}
+                  onInput={(e) => {
+                    setPresetName(null);
+                    setProfile({ ...profile, aggression: Number((e.target as HTMLInputElement).value) / 100 });
+                  }}
+                />
+              </label>
+              <label>
+                Players still to act behind you
+                <input value={playersBehindText} inputMode="numeric" onInput={(e) => setPlayersBehindText((e.target as HTMLInputElement).value)} />
+              </label>
+            </div>
+            {!profileResult && <p class="muted">Enter a pot, a bet, and either a villain hand or a board to compare, to see the decision.</p>}
+            {profileResult && (
+              <>
+                <table>
+                  <tbody>
+                    <tr>
+                      <th>Immediate break-even equity</th>
+                      <td>{pct(profileResult.immediateBreakEven)}</td>
+                    </tr>
+                    <tr>
+                      <th>Implied gain when you hit (estimate)</th>
+                      <td>{num(profileResult.inputs.impliedGain, 1)}</td>
+                    </tr>
+                    <tr>
+                      <th>Reverse implied loss (estimate)</th>
+                      <td>{num(profileResult.inputs.reverseLoss, 1)}</td>
+                    </tr>
+                    <tr>
+                      <th>Equity needed after implied odds</th>
+                      <td>{pct(Math.min(1, profileResult.equityNeeded))}</td>
+                    </tr>
+                    <tr>
+                      <th>EV, immediate odds only</th>
+                      <td>{num(profileResult.evImmediate.total, 1)}</td>
+                    </tr>
+                    <tr>
+                      <th>EV, with implied odds</th>
+                      <td>{num(profileResult.evWithImplied, 1)}</td>
+                    </tr>
+                    {playersBehind > 0 && (
+                      <tr>
+                        <th>Raise-behind probability</th>
+                        <td>{pct(profileResult.raiseBehindProb)}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <th>Total EV</th>
+                      <td>{num(profileResult.total, 1)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class={`decision ${profileResult.call ? 'ok' : 'miss'}`}>
+                  {profileResult.call ? 'Call' : 'Fold'} against this profile: total EV {num(profileResult.total, 1)}.
+                </p>
+                <Working>
+                  <Step text="Net implied winnings: what you expect to win when you hit, minus what you expect to lose when it completes but is still beaten." formula={`${num(profileResult.inputs.impliedGain, 1)} - ${num(profileResult.inputs.reverseLoss, 1)}`} result={num(profileResult.implied.net, 1)} />
+                  <Step
+                    text="EV including that net figure: e(P + B + net) - (1 - e)B."
+                    formula={`${num(compareEquity ?? 0, 3)} x (${pot} + ${bet} + ${num(profileResult.implied.net, 1)}) - ${num(1 - (compareEquity ?? 0), 3)} x ${bet}`}
+                    result={num(profileResult.evWithImplied, 1)}
+                  />
+                  {playersBehind > 0 && (
+                    <Step
+                      text="Action behind: with probability r a raise forces a fold and the call is forfeited. r = 1 - (1 - aggression)^players."
+                      formula={`(1 - ${num(profileResult.raiseBehindProb, 2)}) x ${num(profileResult.evWithImplied, 1)} - ${num(profileResult.raiseBehindProb, 2)} x ${bet}`}
+                      result={num(profileResult.total, 1)}
+                    />
+                  )}
+                  <Step text="These four parameters are estimates from observation. The arithmetic on top of them is exact." />
                 </Working>
               </>
             )}

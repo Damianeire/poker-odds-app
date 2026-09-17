@@ -1,148 +1,52 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { DRILLS, grade, parseAnswer, formatValue, type Difficulty, type DrillInstance, type GradeResult } from '../drills';
+import { useEffect, useMemo, useState } from 'preact/hooks';
+import { DRILLS, TEACHING_ORDER, drillNumber, type Difficulty, type DrillInstance } from '../drills';
 import { createRng } from '../engine/rng';
-import { CardRow } from './Card';
-import { Working, Step } from './Working';
-
-interface DrillStats {
-  attempts: number;
-  correct: number;
-  times: number[];
-  errors: number[];
-}
-
-type StatsMap = Record<string, DrillStats>;
-
-function median(xs: number[]): number | null {
-  if (xs.length === 0) return null;
-  const s = xs.slice().sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
-}
-
-function mean(xs: number[]): number | null {
-  if (xs.length === 0) return null;
-  return xs.reduce((a, b) => a + b, 0) / xs.length;
-}
+import { recordAttempt, summarise, unlockedModules, dueDrills, FLUENCY, GATING_DRILLS, MODULE_IDS } from '../srs/store';
+import { PAGES } from '../content';
+import { useProgress, updateProgress } from './progress';
+import { Question, type QuestionResult } from './Question';
 
 let seedCounter = Date.now() % 1000000;
 
-export function DrillView() {
-  const [drillId, setDrillId] = useState(DRILLS[0]!.id);
-  const [difficulty, setDifficulty] = useState<Difficulty>(1);
-  const [instance, setInstance] = useState<DrillInstance | null>(null);
-  const [input, setInput] = useState('');
-  const [result, setResult] = useState<GradeResult | null>(null);
-  const [timedOut, setTimedOut] = useState(false);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [showWorking, setShowWorking] = useState(false);
-  const [remaining, setRemaining] = useState<number | null>(null);
-  const [stats, setStats] = useState<StatsMap>({});
-  const startedAt = useRef(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const choicesRef = useRef<HTMLDivElement>(null);
+const moduleTitle = (id: string): string => PAGES.find((p) => p.id === id)?.title ?? id;
 
-  const drill = useMemo(() => DRILLS.find((d) => d.id === drillId)!, [drillId]);
+export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
+  const progress = useProgress();
+  const now = useMemo(() => new Date(), [progress]);
+  const unlocked = unlockedModules(progress);
+  const available = TEACHING_ORDER.filter((d) => unlocked.includes(d.module));
+  const due = dueDrills(progress, available.map((d) => d.id), now);
+  const [drillId, setDrillId] = useState(due[0] ?? available[0]!.id);
+  const [difficulty, setDifficulty] = useState<Difficulty>(1);
+
+  useEffect(() => {
+    if (jumpTo && available.some((d) => d.id === jumpTo)) setDrillId(jumpTo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTo]);
+  const [instance, setInstance] = useState<DrillInstance | null>(null);
+  const [streak, setStreak] = useState(0);
+  const [session, setSession] = useState({ attempts: 0, correct: 0 });
+
+  const drill = useMemo(() => available.find((d) => d.id === drillId) ?? available[0]!, [drillId, available]);
+  const summary = summarise(progress, drill.id, now);
 
   const next = () => {
     seedCounter += 1;
-    const inst = drill.generate(createRng(seedCounter), difficulty);
-    setInstance(inst);
-    setInput('');
-    setResult(null);
-    setTimedOut(false);
-    setParseError(null);
-    setShowWorking(false);
-    setRemaining(inst.prompt.timeLimitSeconds ?? null);
-    startedAt.current = performance.now();
-    // Move focus off the selects so number keys and Space reach the question.
-    setTimeout(() => {
-      if (inputRef.current) inputRef.current.focus();
-      else choicesRef.current?.querySelector('button')?.focus();
-    }, 0);
+    setInstance(drill.generate(createRng(seedCounter), difficulty));
   };
 
   useEffect(() => {
     next();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drillId, difficulty]);
+  }, [drill.id, difficulty]);
 
-  const record = (inst: DrillInstance, g: GradeResult | null) => {
-    const elapsed = performance.now() - startedAt.current;
-    setStats((prev) => {
-      const s: DrillStats = prev[inst.prompt.text ? drill.id : drill.id] ?? { attempts: 0, correct: 0, times: [], errors: [] };
-      const copy: DrillStats = { ...s, times: [...s.times, elapsed], errors: s.errors.slice() };
-      copy.attempts += 1;
-      if (g?.correct) copy.correct += 1;
-      if (g && inst.unit === 'percent' && Number.isFinite(g.error)) copy.errors.push(g.error);
-      return { ...prev, [drill.id]: copy };
-    });
+  const onResult = (r: QuestionResult) => {
+    setStreak((s) => (r.correct ? s + 1 : 0));
+    setSession((s) => ({ attempts: s.attempts + 1, correct: s.correct + (r.correct ? 1 : 0) }));
+    updateProgress((s) => recordAttempt(s, { drillId: drill.id, correct: r.correct, ms: r.ms, ...(r.error !== null ? { error: r.error } : {}) }, new Date()));
   };
 
-  const submit = (value?: number) => {
-    if (!instance || result || timedOut) return;
-    let v = value;
-    if (v === undefined) {
-      const parsed = parseAnswer(input, instance.unit);
-      if (!parsed) {
-        setParseError(
-          instance.unit === 'percent'
-            ? 'Enter a number, a percentage such as 35%, or odds such as 2 to 1.'
-            : instance.unit === 'ratio'
-              ? 'Enter odds such as 4, 4:1, 4 to 1, or a percentage such as 20%.'
-              : 'Enter a whole number.',
-        );
-        return;
-      }
-      v = parsed.value;
-    }
-    const g = grade(instance, v);
-    setResult(g);
-    setParseError(null);
-    record(instance, g);
-  };
-
-  // Countdown.
-  useEffect(() => {
-    if (!instance || remaining === null || result || timedOut) return;
-    if (remaining <= 0) {
-      setTimedOut(true);
-      record(instance, null);
-      return;
-    }
-    const t = setTimeout(() => setRemaining((r) => (r === null ? null : r - 1)), 1000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remaining, instance, result, timedOut]);
-
-  // Keyboard: Space for next, w for working, 1/2 for choices.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const typing = target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA');
-      const answered = result !== null || timedOut;
-      if (e.key === ' ' && answered) {
-        e.preventDefault();
-        next();
-      } else if ((e.key === 'w' || e.key === 'W') && !typing) {
-        e.preventDefault();
-        setShowWorking((s) => !s);
-      } else if (instance?.prompt.choices && !answered && !typing) {
-        const idx = parseInt(e.key, 10) - 1;
-        if (idx >= 0 && idx < instance.prompt.choices.length) {
-          e.preventDefault();
-          submit(idx);
-        }
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  });
-
-  if (!instance) return null;
-  const p = instance.prompt;
-  const answered = result !== null || timedOut;
-  const s = stats[drill.id];
+  const locked = MODULE_IDS.filter((m) => !unlocked.includes(m));
 
   return (
     <div class="drill-layout">
@@ -150,11 +54,16 @@ export function DrillView() {
         <div class="drill-controls">
           <label>
             Drill
-            <select value={drillId} onChange={(e) => setDrillId((e.target as HTMLSelectElement).value)}>
-              {DRILLS.map((d, i) => (
-                <option value={d.id} key={d.id}>
-                  {i + 1}. {d.title}
-                </option>
+            <select value={drill.id} onChange={(e) => setDrillId((e.target as HTMLSelectElement).value)}>
+              {MODULE_IDS.map((m) => (
+                <optgroup key={m} label={`${m}. ${moduleTitle(m)}${unlocked.includes(m) ? '' : ' (locked)'}`}>
+                  {TEACHING_ORDER.filter((d) => d.module === m).map((d) => (
+                    <option value={d.id} key={d.id} disabled={!unlocked.includes(m)}>
+                      {drillNumber(d.id)}. {d.title}
+                      {due.includes(d.id) ? ' (due)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>
@@ -169,121 +78,12 @@ export function DrillView() {
           <span class="drill-module">{drill.module}</span>
         </div>
         <p class="drill-description">{drill.description}</p>
-
-        <div class="prompt">
-          {p.heroCards && <CardRow label="You" cards={p.heroCards} />}
-          {p.board && <CardRow label="Board" cards={p.board} />}
-          {p.villainCards && <CardRow label="Villain" cards={p.villainCards} />}
-          {p.facts && (
-            <dl class="facts">
-              {p.facts.map((f) => (
-                <div key={f.label}>
-                  <dt>{f.label}</dt>
-                  <dd>{f.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-          <p class="prompt-text">{p.text}</p>
-          {remaining !== null && !answered && (
-            <div class="timer" aria-live="polite">
-              <div class="timer-bar" style={{ width: `${(100 * remaining) / (p.timeLimitSeconds ?? 1)}%` }} />
-              <span>{remaining}s</span>
-            </div>
-          )}
-        </div>
-
-        {!answered && p.choices && (
-          <div class="choices" ref={choicesRef}>
-            {p.choices.map((c, i) => (
-              <button type="button" key={c} onClick={() => submit(i)}>
-                <kbd>{i + 1}</kbd> {c}
-              </button>
-            ))}
-          </div>
+        {locked.length > 0 && (
+          <p class="lock-note">
+            Modules M2 to M9 unlock when {GATING_DRILLS.map((id) => DRILLS.find((d) => d.id === id)!.title).join(' and ')} are fluent: {FLUENCY.attempts} attempts each, {Math.round(FLUENCY.accuracy * 100)}% recent accuracy, median under {FLUENCY.medianMs / 1000}s. Gating can be turned off under Progress.
+          </p>
         )}
-
-        {!answered && !p.choices && (
-          <form
-            class="answer-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit();
-            }}
-          >
-            <label>
-              {p.answerLabel ?? 'Answer'}
-              <input
-                ref={inputRef}
-                type="text"
-                inputMode="decimal"
-                autocomplete="off"
-                value={input}
-                onInput={(e) => setInput((e.target as HTMLInputElement).value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    submit();
-                  }
-                }}
-              />
-            </label>
-            <button type="submit">
-              Submit <kbd>Enter</kbd>
-            </button>
-            {instance.unit === 'percent' && <span class="hint">Percent or odds, e.g. 35 or 2 to 1</span>}
-            {instance.unit === 'ratio' && <span class="hint">Odds against, e.g. 4 or 4 to 1, or a percent</span>}
-            {parseError && <span class="error">{parseError}</span>}
-          </form>
-        )}
-
-        {answered && (
-          <div class={`result ${result?.correct ? 'ok' : 'miss'}`} aria-live="polite">
-            <div class="result-line">
-              {timedOut ? 'Time expired.' : result?.correct ? 'Within tolerance.' : 'Outside tolerance.'}
-            </div>
-            <table class="three-numbers">
-              <tbody>
-                <tr>
-                  <th>Your answer</th>
-                  <td>
-                    {timedOut || !result
-                      ? 'none'
-                      : p.choices
-                        ? p.choices[result.userValue] ?? String(result.userValue)
-                        : formatValue(result.userValue, instance.unit)}
-                  </td>
-                </tr>
-                {instance.shortcutAnswer !== undefined && (
-                  <tr>
-                    <th>{instance.shortcutName ?? 'Shortcut'}</th>
-                    <td>{formatValue(instance.shortcutAnswer, instance.unit)}</td>
-                  </tr>
-                )}
-                <tr>
-                  <th>Exact</th>
-                  <td>{p.choices ? p.choices[instance.answer] : formatValue(instance.answer, instance.unit)}</td>
-                </tr>
-                {!p.choices && (
-                  <tr>
-                    <th>Tolerance</th>
-                    <td>&plusmn; {formatValue(instance.tolerance, instance.unit)}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            <p class="summary">{instance.explanation.summary}</p>
-            {instance.explanation.alternate && <p class="alternate">{instance.explanation.alternate}</p>}
-            <Working open={showWorking} onToggle={setShowWorking}>
-              {instance.explanation.steps.map((st, i) => (
-                <Step key={i} {...st} />
-              ))}
-            </Working>
-            <button type="button" class="next" onClick={next}>
-              Next <kbd>Space</kbd>
-            </button>
-          </div>
-        )}
+        {instance && <Question instance={instance} onResult={onResult} onNext={next} ghostMs={summary.medianMs} />}
       </section>
 
       <aside class="drill-stats">
@@ -291,38 +91,58 @@ export function DrillView() {
         <table>
           <tbody>
             <tr>
+              <th>Streak</th>
+              <td>{streak}</td>
+            </tr>
+            <tr>
               <th>Attempts</th>
-              <td>{s?.attempts ?? 0}</td>
+              <td>{session.attempts}</td>
             </tr>
             <tr>
               <th>Accuracy</th>
-              <td>{s && s.attempts > 0 ? `${Math.round((100 * s.correct) / s.attempts)}%` : '—'}</td>
+              <td>{session.attempts > 0 ? `${Math.round((100 * session.correct) / session.attempts)}%` : '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>This drill, all time</h3>
+        <table>
+          <tbody>
+            <tr>
+              <th>Attempts</th>
+              <td>{summary.attempts}</td>
+            </tr>
+            <tr>
+              <th>Recent accuracy</th>
+              <td>{summary.recentAccuracy !== null ? `${Math.round(summary.recentAccuracy * 100)}%` : '—'}</td>
             </tr>
             <tr>
               <th>Median time</th>
-              <td>{s && median(s.times) !== null ? `${(median(s.times)! / 1000).toFixed(1)}s` : '—'}</td>
+              <td>{summary.medianMs !== null ? `${(summary.medianMs / 1000).toFixed(1)}s` : '—'}</td>
             </tr>
             <tr>
-              <th>Mean signed error</th>
-              <td>{s && mean(s.errors) !== null ? `${mean(s.errors)! >= 0 ? '+' : ''}${mean(s.errors)!.toFixed(1)} pts` : '—'}</td>
+              <th>Bias</th>
+              <td>{summary.bias !== null ? `${summary.bias >= 0 ? '+' : ''}${summary.bias.toFixed(1)} pts` : '—'}</td>
+            </tr>
+            <tr>
+              <th>Box</th>
+              <td>{summary.box} of 5</td>
             </tr>
           </tbody>
         </table>
-        <p class="stats-note">Not saved between sessions in this build.</p>
-        <h3>All drills</h3>
-        <table>
-          <tbody>
-            {DRILLS.map((d) => {
-              const st = stats[d.id];
-              return (
-                <tr key={d.id} class={d.id === drillId ? 'current' : ''}>
-                  <th>{d.title}</th>
-                  <td>{st ? `${st.correct}/${st.attempts}` : '—'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <h3>Due now</h3>
+        {due.length === 0 ? (
+          <p class="muted">Nothing due.</p>
+        ) : (
+          <ul class="due-list">
+            {due.slice(0, 8).map((id) => (
+              <li key={id}>
+                <button type="button" class="link" onClick={() => setDrillId(id)}>
+                  {DRILLS.find((d) => d.id === id)!.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </aside>
     </div>
   );

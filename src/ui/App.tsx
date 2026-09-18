@@ -6,10 +6,10 @@ import { BankrollView } from './BankrollView';
 import { SandboxView } from './SandboxView';
 import { TablesView } from './TablesView';
 import { ProgressView } from './ProgressView';
-import { useProgress, updateProgress } from './progress';
-import { updateSettings } from '../srs/store';
+import { SettingsView } from './SettingsView';
+import { useProgress } from './progress';
 
-type Tab = 'learn' | 'drill' | 'timed' | 'bankroll' | 'sandbox' | 'tables' | 'progress';
+type Tab = 'learn' | 'drill' | 'timed' | 'bankroll' | 'sandbox' | 'tables' | 'progress' | 'settings';
 
 export function App() {
   const [tab, setTab] = useState<Tab>('drill');
@@ -39,6 +39,7 @@ export function App() {
               ['sandbox', 'Sandbox'],
               ['tables', 'Tables'],
               ['progress', 'Progress'],
+              ['settings', 'Settings'],
             ] as [Tab, string][]
           ).map(([id, label]) => (
             <button type="button" key={id} class={tab === id ? 'active' : ''} onClick={() => {
@@ -49,16 +50,6 @@ export function App() {
             </button>
           ))}
         </nav>
-        <label class="toggle">
-          <input
-            type="checkbox"
-            checked={progress.settings.fourColour}
-            onChange={(e) =>
-              updateProgress((s) => updateSettings(s, { fourColour: (e.target as HTMLInputElement).checked }))
-            }
-          />
-          Four-colour deck
-        </label>
       </header>
       <main>
         {tab === 'learn' && <LearnView onDrill={goToDrill} />}
@@ -68,6 +59,7 @@ export function App() {
         {tab === 'sandbox' && <SandboxView />}
         {tab === 'tables' && <TablesView />}
         {tab === 'progress' && <ProgressView />}
+        {tab === 'settings' && <SettingsView />}
       </main>
     </div>
   );

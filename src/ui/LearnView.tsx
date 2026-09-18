@@ -115,7 +115,7 @@ export function LearnView({ onDrill }: { onDrill: (drillId: string) => void }) {
               {!pageUnlocked && (
                 <p class="lock-note">
                   Locked until {GATING_DRILLS.map((id) => DRILLS.find((d) => d.id === id)!.title).join(' and ')} are fluent.
-                  Gating can be turned off under Progress.
+                  Gating can be turned off under Settings.
                 </p>
               )}
               <ul>

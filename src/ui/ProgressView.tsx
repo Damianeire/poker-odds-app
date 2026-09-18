@@ -2,8 +2,8 @@
 
 import { useRef, useState } from 'preact/hooks';
 import { DRILLS } from '../drills';
-import { weakestDrills, calibrationScore, updateSettings, exportJson, importJson, MODULE_IDS, unlockedModules } from '../srs/store';
-import { useProgress, updateProgress, setProgress } from './progress';
+import { weakestDrills, calibrationScore, exportJson, importJson, MODULE_IDS, unlockedModules } from '../srs/store';
+import { useProgress, setProgress } from './progress';
 
 export function ProgressView() {
   const progress = useProgress();
@@ -87,19 +87,12 @@ export function ProgressView() {
       <section class="panel">
         <h3>Modules unlocked</h3>
         <p>{MODULE_IDS.map((m) => (unlocked.includes(m) ? m : `${m} (locked)`)).join(', ')}</p>
-        <label class="toggle">
-          <input
-            type="checkbox"
-            checked={progress.settings.gating}
-            onChange={(e) => updateProgress((s) => updateSettings(s, { gating: (e.target as HTMLInputElement).checked }))}
-          />
-          Require fluency on hand ranking and best hand before other modules unlock
-        </label>
+        <p class="muted">Module gating is under Settings.</p>
       </section>
 
       <section class="panel">
         <h3>Data</h3>
-        <p class="muted">Everything is stored in this browser only. Export a copy to move it, or as a backup.</p>
+        <p class="muted">Results save after every answer, in this browser only. A different browser or address starts empty, so export a copy to move it or keep a backup. An unfinished question or Timed run is not saved.</p>
         <div class="progress-actions">
           <button type="button" onClick={doExport}>
             Export progress

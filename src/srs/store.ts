@@ -38,11 +38,29 @@ export interface BankrollSession {
   finalStack: number;
 }
 
+export type Level = 1 | 2 | 3;
+
+/** Countdown in the Drill tab. Timed mode is not affected. */
+export type DrillTimer = 'off' | 'relaxed' | 'standard';
+
+/**
+ * How difficulty levels are worked through in the Drill tab.
+ * free: one level for everything, chosen by hand.
+ * per-drill: each drill keeps its own level and suggests moving up.
+ * curriculum: one pass level for all drills, the next opens once every drill passes the current one.
+ */
+export type Progression = 'free' | 'per-drill' | 'curriculum';
+
 export interface Settings {
   fourColour: boolean;
   /** Require fluency on the M1 drills before other modules unlock. */
   gating: boolean;
+  drillTimer: DrillTimer;
+  progression: Progression;
 }
+
+/** Recent outcomes (1 correct, 0 miss) at each level, up to LEVEL_WINDOW each. */
+export type LevelHistory = Partial<Record<Level, number[]>>;
 
 export interface ProgressState {
   version: number;
@@ -52,6 +70,14 @@ export interface ProgressState {
   /** Absolute errors of the most recent estimates, in percentage points. */
   calibration: number[];
   settings: Settings;
+  /** Recent outcomes per drill per level. */
+  levels: Record<string, LevelHistory>;
+  /** Current level per drill, used by per-drill progression. */
+  drillLevel: Record<string, Level>;
+  /** Current pass level, used by curriculum progression. */
+  curriculumLevel: Level;
+  /** Drill open when the app was last used, so a reload resumes it. */
+  lastDrillId: string | null;
 }
 
 export function emptyState(): ProgressState {
@@ -61,7 +87,11 @@ export function emptyState(): ProgressState {
     timed: [],
     bankroll: [],
     calibration: [],
-    settings: { fourColour: true, gating: true },
+    settings: { fourColour: true, gating: true, drillTimer: 'off', progression: 'per-drill' },
+    levels: {},
+    drillLevel: {},
+    curriculumLevel: 1,
+    lastDrillId: null,
   };
 }
 
@@ -69,8 +99,17 @@ export interface AttemptInput {
   drillId: string;
   correct: boolean;
   ms: number;
+  /** Level the question was set at. Omitted for attempts that should not count towards level progress. */
+  difficulty?: Level;
   /** Signed error for estimate-type answers, in percentage points. */
   error?: number;
+}
+
+export const LEVEL_PASS = { attempts: 10, accuracy: 0.8 };
+
+function pushLevel(list: number[], value: number): number[] {
+  const out = list.concat([value]);
+  return out.length > LEVEL_PASS.attempts ? out.slice(out.length - LEVEL_PASS.attempts) : out;
 }
 
 function pushRolling(list: number[], value: number): number[] {
@@ -107,7 +146,16 @@ export function recordAttempt(state: ProgressState, input: AttemptInput, now: Da
   };
   const calibration =
     input.error !== undefined && Number.isFinite(input.error) ? pushRolling(state.calibration, Math.abs(input.error)) : state.calibration;
-  return { ...state, drills: { ...state.drills, [input.drillId]: rec }, calibration };
+  const levels = input.difficulty
+    ? {
+        ...state.levels,
+        [input.drillId]: {
+          ...state.levels[input.drillId],
+          [input.difficulty]: pushLevel(state.levels[input.drillId]?.[input.difficulty] ?? [], input.correct ? 1 : 0),
+        },
+      }
+    : state.levels;
+  return { ...state, drills: { ...state.drills, [input.drillId]: rec }, calibration, levels };
 }
 
 export function median(xs: readonly number[]): number | null {
@@ -204,6 +252,32 @@ export function unlockedModules(state: ProgressState): string[] {
   return fluent ? MODULE_IDS.slice() : ['M1'];
 }
 
+/** A level is passed when the last ten answers at it exist and at least 80% were correct. */
+export function levelPassed(state: ProgressState, drillId: string, level: Level): boolean {
+  const recent = state.levels[drillId]?.[level] ?? [];
+  if (recent.length < LEVEL_PASS.attempts) return false;
+  return (mean(recent) ?? 0) >= LEVEL_PASS.accuracy;
+}
+
+/** The next level up when the current one is passed, otherwise null. */
+export function suggestedLevel(state: ProgressState, drillId: string, current: Level): Level | null {
+  if (current >= 3 || !levelPassed(state, drillId, current)) return null;
+  return (current + 1) as Level;
+}
+
+/** How many of the given drills have passed a level. */
+export function curriculumProgress(state: ProgressState, drillIds: readonly string[], level: Level): number {
+  return drillIds.filter((id) => levelPassed(state, id, level)).length;
+}
+
+/** The highest level open in curriculum progression: each level needs every drill to pass the one below. */
+export function curriculumOpenLevel(state: ProgressState, drillIds: readonly string[]): Level {
+  if (drillIds.length === 0) return 1;
+  if (curriculumProgress(state, drillIds, 1) < drillIds.length) return 1;
+  if (curriculumProgress(state, drillIds, 2) < drillIds.length) return 2;
+  return 3;
+}
+
 /** Median absolute error over the last fifty estimates, in percentage points. */
 export function calibrationScore(state: ProgressState): number | null {
   return median(state.calibration);
@@ -215,6 +289,18 @@ export function addTimedSession(state: ProgressState, s: TimedSession): Progress
 
 export function addBankrollSession(state: ProgressState, s: BankrollSession): ProgressState {
   return { ...state, bankroll: state.bankroll.concat([s]) };
+}
+
+export function setDrillLevel(state: ProgressState, drillId: string, level: Level): ProgressState {
+  return { ...state, drillLevel: { ...state.drillLevel, [drillId]: level } };
+}
+
+export function setCurriculumLevel(state: ProgressState, level: Level): ProgressState {
+  return { ...state, curriculumLevel: level };
+}
+
+export function setLastDrill(state: ProgressState, drillId: string): ProgressState {
+  return state.lastDrillId === drillId ? state : { ...state, lastDrillId: drillId };
 }
 
 export function updateSettings(state: ProgressState, patch: Partial<Settings>): ProgressState {
@@ -258,6 +344,52 @@ export function importJson(text: string): ProgressState {
     timed: Array.isArray(obj.timed) ? obj.timed : [],
     bankroll: Array.isArray(obj.bankroll) ? obj.bankroll : [],
     calibration: Array.isArray(obj.calibration) ? obj.calibration.filter((x) => typeof x === 'number') : [],
-    settings: { ...base.settings, ...(obj.settings ?? {}) },
+    settings: sanitiseSettings(obj.settings, base.settings),
+    levels: sanitiseLevels(obj.levels),
+    drillLevel: sanitiseDrillLevels(obj.drillLevel),
+    curriculumLevel: asLevel(obj.curriculumLevel) ?? 1,
+    lastDrillId: typeof obj.lastDrillId === 'string' ? obj.lastDrillId : null,
   };
+}
+
+function asLevel(x: unknown): Level | null {
+  return x === 1 || x === 2 || x === 3 ? x : null;
+}
+
+const TIMERS: readonly DrillTimer[] = ['off', 'relaxed', 'standard'];
+const PROGRESSIONS: readonly Progression[] = ['free', 'per-drill', 'curriculum'];
+
+function sanitiseSettings(raw: unknown, base: Settings): Settings {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Settings>;
+  return {
+    fourColour: typeof r.fourColour === 'boolean' ? r.fourColour : base.fourColour,
+    gating: typeof r.gating === 'boolean' ? r.gating : base.gating,
+    drillTimer: TIMERS.includes(r.drillTimer as DrillTimer) ? (r.drillTimer as DrillTimer) : base.drillTimer,
+    progression: PROGRESSIONS.includes(r.progression as Progression) ? (r.progression as Progression) : base.progression,
+  };
+}
+
+function sanitiseLevels(raw: unknown): Record<string, LevelHistory> {
+  const out: Record<string, LevelHistory> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, h] of Object.entries(raw as Record<string, unknown>)) {
+    if (!h || typeof h !== 'object') continue;
+    const hist: LevelHistory = {};
+    for (const lv of [1, 2, 3] as const) {
+      const list = (h as Record<string, unknown>)[String(lv)];
+      if (Array.isArray(list)) hist[lv] = list.filter((x) => x === 0 || x === 1).slice(-LEVEL_PASS.attempts);
+    }
+    out[id] = hist;
+  }
+  return out;
+}
+
+function sanitiseDrillLevels(raw: unknown): Record<string, Level> {
+  const out: Record<string, Level> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    const lv = asLevel(v);
+    if (lv) out[id] = lv;
+  }
+  return out;
 }

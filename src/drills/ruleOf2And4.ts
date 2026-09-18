@@ -12,7 +12,7 @@ export const ruleOf2And4: Drill = {
   module: 'M4',
   title: 'Estimate with the Rule of 2 and 4',
   description:
-    'Outs and a street, on a timer. Estimate the probability in your head. The Rule of 2 applies to one card to come, the Rule of 4 only when both cards are guaranteed.',
+    'Outs and a street. Estimate the probability in your head. The Rule of 2 applies to one card to come, the Rule of 4 only when both cards are guaranteed.',
   generate(rng, difficulty): DrillInstance {
     const outs = pickOuts(rng, difficulty);
     const twoCards = rng.next() < 0.5;

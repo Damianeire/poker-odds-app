@@ -8,6 +8,15 @@ import { Question, type QuestionResult } from './Question';
 
 let seedCounter = Date.now() % 1000000;
 
+// The Drill tab unmounts when you visit another tab. Keep the selection and the
+// session tally here so coming back resumes the same drill.
+const remembered: { drillId: string | null; difficulty: Difficulty; streak: number; session: { attempts: number; correct: number } } = {
+  drillId: null,
+  difficulty: 1,
+  streak: 0,
+  session: { attempts: 0, correct: 0 },
+};
+
 const moduleTitle = (id: string): string => PAGES.find((p) => p.id === id)?.title ?? id;
 
 export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
@@ -16,16 +25,26 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
   const unlocked = unlockedModules(progress);
   const available = TEACHING_ORDER.filter((d) => unlocked.includes(d.module));
   const due = dueDrills(progress, available.map((d) => d.id), now);
-  const [drillId, setDrillId] = useState(due[0] ?? available[0]!.id);
-  const [difficulty, setDifficulty] = useState<Difficulty>(1);
+  const [drillId, setDrillIdState] = useState(
+    remembered.drillId && available.some((d) => d.id === remembered.drillId) ? remembered.drillId : (due[0] ?? available[0]!.id),
+  );
+  const [difficulty, setDifficultyState] = useState<Difficulty>(remembered.difficulty);
+  const setDrillId = (id: string) => {
+    remembered.drillId = id;
+    setDrillIdState(id);
+  };
+  const setDifficulty = (d: Difficulty) => {
+    remembered.difficulty = d;
+    setDifficultyState(d);
+  };
 
   useEffect(() => {
     if (jumpTo && available.some((d) => d.id === jumpTo)) setDrillId(jumpTo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTo]);
   const [instance, setInstance] = useState<DrillInstance | null>(null);
-  const [streak, setStreak] = useState(0);
-  const [session, setSession] = useState({ attempts: 0, correct: 0 });
+  const [streak, setStreakState] = useState(remembered.streak);
+  const [session, setSessionState] = useState(remembered.session);
 
   const drill = useMemo(() => available.find((d) => d.id === drillId) ?? available[0]!, [drillId, available]);
   const summary = summarise(progress, drill.id, now);
@@ -41,8 +60,10 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
   }, [drill.id, difficulty]);
 
   const onResult = (r: QuestionResult) => {
-    setStreak((s) => (r.correct ? s + 1 : 0));
-    setSession((s) => ({ attempts: s.attempts + 1, correct: s.correct + (r.correct ? 1 : 0) }));
+    remembered.streak = r.correct ? remembered.streak + 1 : 0;
+    remembered.session = { attempts: remembered.session.attempts + 1, correct: remembered.session.correct + (r.correct ? 1 : 0) };
+    setStreakState(remembered.streak);
+    setSessionState(remembered.session);
     updateProgress((s) => recordAttempt(s, { drillId: drill.id, correct: r.correct, ms: r.ms, ...(r.error !== null ? { error: r.error } : {}) }, new Date()));
   };
 

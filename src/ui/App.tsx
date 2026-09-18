@@ -41,7 +41,10 @@ export function App() {
               ['progress', 'Progress'],
             ] as [Tab, string][]
           ).map(([id, label]) => (
-            <button type="button" key={id} class={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
+            <button type="button" key={id} class={tab === id ? 'active' : ''} onClick={() => {
+                setJumpDrill(null);
+                setTab(id);
+              }}>
               {label}
             </button>
           ))}

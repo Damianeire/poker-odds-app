@@ -10,7 +10,7 @@ import { createRng, seedFromString } from '../engine/rng';
 import { topRange, rangeCombos, equityVsRange, type RangeEquity } from '../engine/ranges';
 import { PROFILE_PRESETS, profiledCall, type VillainProfile } from '../engine/profile';
 import { num } from '../drills/types';
-import { DRAW_TARGETS } from '../drills/deal';
+import { DRAW_TARGETS, isGenuineDraw } from '../drills/deal';
 import { computeEquity } from './equityClient';
 import { CardRow } from './Card';
 import { Working, Step } from './Working';
@@ -72,7 +72,7 @@ export function SandboxView() {
   // Out detection.
   const outsVsVillain = onFlopOrTurn && villain.length === 2 ? detectOutsVsHand(hero, villain, board) : null;
   const drawRows = onFlopOrTurn
-    ? DRAW_TARGETS.map((t) => ({ target: t, outs: detectOutsToCategory(hero, board, t.category, villain) })).filter((r) => r.outs.count > 0)
+    ? DRAW_TARGETS.map((t) => ({ target: t, outs: detectOutsToCategory(hero, board, t.category, villain) })).filter((r) => r.outs.count > 0 && isGenuineDraw(hero, board, r.target.category, r.outs))
     : [];
   const detectedOuts = outsVsVillain ? outsVsVillain.count : (drawRows[0]?.outs.count ?? 0);
   const detectedLabel = outsVsVillain ? 'cards that beat villain' : drawRows[0] ? `to ${drawRows[0].target.label}` : 'none detected';

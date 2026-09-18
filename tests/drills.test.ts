@@ -4,7 +4,9 @@ import { createRng } from '../src/engine/rng';
 import { probNextCard, probTwoCards, detectOutsToCategory, detectOutsVsHand } from '../src/engine/outs';
 import { potOdds } from '../src/engine/potodds';
 import { formatCards } from '../src/engine/cards';
-import { evaluate, categoryOf } from '../src/engine/evaluator';
+import { evaluate, categoryOf, Category } from '../src/engine/evaluator';
+import { parseCards } from '../src/engine/cards';
+import { DRAW_TARGETS, dealDrawSpot, isGenuineDraw } from '../src/drills/deal';
 
 const DIFFICULTIES: Difficulty[] = [1, 2, 3];
 
@@ -337,5 +339,44 @@ describe('Phase 2 drills agree with the engine', () => {
     expect(inst.answer).toBeGreaterThan(0);
     expect(inst.answer).toBeLessThan(100);
     expect(inst.explanation.steps[0]!.text).toContain('1,712,304');
+  });
+});
+
+describe('draw spots name a draw the hand actually has', () => {
+  it('pocket deuces on 8-8-7 have full-house cards but no flush draw, and villain cards are never outs', () => {
+    const hero = parseCards('2c 2d');
+    const board = parseCards('8c 7h 8d');
+    const villain = parseCards('8h Jd');
+    const flush = detectOutsToCategory(hero, board, Category.Flush, villain);
+    expect(flush.outs).not.toContain(villain[0]);
+    expect(isGenuineDraw(hero, board, Category.Flush, flush)).toBe(false);
+    const fullHouse = detectOutsToCategory(hero, board, Category.FullHouse, villain);
+    expect(isGenuineDraw(hero, board, Category.FullHouse, fullHouse)).toBe(true);
+  });
+
+  it('dealDrawSpot only returns genuine draws, clean or not', () => {
+    for (const clean of [true, false]) {
+      for (let seed = 1; seed <= 300; seed++) {
+        const spot = dealDrawSpot(createRng(seed), { clean, boardLength: seed % 2 ? 3 : 4 });
+        expect(isGenuineDraw(spot.hero, spot.board, spot.target.category, spot.outs)).toBe(true);
+      }
+    }
+  });
+
+  it('dirty outs names a real flush or straight draw and counts raw outs with villain cards removed', () => {
+    const drill = DRILLS.find((x) => x.id === 'dirty-outs')!;
+    for (const d of DIFFICULTIES) {
+      for (let seed = 1; seed <= 60; seed++) {
+        const inst = drill.generate(createRng(seed * 31 + d), d);
+        const { heroCards, board, villainCards } = inst.prompt;
+        const raw = Number(inst.prompt.facts![0]!.value);
+        const named = DRAW_TARGETS.filter((t) => inst.prompt.text.includes(`drawing to ${t.label},`));
+        expect(named.length).toBe(1);
+        const outs = detectOutsToCategory(heroCards!, board!, named[0]!.category, villainCards!);
+        expect(outs.count).toBe(raw);
+        expect(isGenuineDraw(heroCards!, board!, named[0]!.category, outs)).toBe(true);
+        expect(outs.outs.some((c) => villainCards!.includes(c))).toBe(false);
+      }
+    }
   });
 });

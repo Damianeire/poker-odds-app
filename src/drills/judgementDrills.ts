@@ -6,7 +6,7 @@ import { evaluate, describeScore, categoryOf, Category } from '../engine/evaluat
 import { detectOutsToCategory, detectOutsVsHand, heroAhead, outProbabilities, probTwoCards, probNextCard } from '../engine/outs';
 import { profiledCall, type VillainProfile } from '../engine/profile';
 import { ruleOf2, ruleOf4, solomon } from '../engine/shortcuts';
-import { dealDrawSpot, pickPot, pickBet, DRAW_TARGETS } from './deal';
+import { dealDrawSpot, pickPot, pickBet, DRAW_TARGETS, isGenuineDraw } from './deal';
 import { type Drill, type DrillInstance, num } from './types';
 
 export const dirtyOuts: Drill = {
@@ -22,9 +22,13 @@ export const dirtyOuts: Drill = {
       const board = cards.slice(4, 7);
       if (heroAhead(hero, villain, board)) continue;
       const heroCat = categoryOf(evaluate([...hero, ...board]));
-      const target = DRAW_TARGETS.find((t) => t.category > heroCat && (t.category === Category.Flush || t.category === Category.Straight) && detectOutsToCategory(hero, board, t.category).count > 0);
+      // Villain's cards are dead: they cannot be your outs.
+      const drawTo = (t: (typeof DRAW_TARGETS)[number]) => detectOutsToCategory(hero, board, t.category, villain);
+      const target = DRAW_TARGETS.find(
+        (t) => t.category > heroCat && (t.category === Category.Flush || t.category === Category.Straight) && isGenuineDraw(hero, board, t.category, drawTo(t)),
+      );
       if (!target) continue;
-      const raw = detectOutsToCategory(hero, board, target.category);
+      const raw = drawTo(target);
       const clean = detectOutsVsHand(hero, villain, board);
       const rawSet = new Set(raw.outs);
       const tainted = raw.outs.filter((c) => !clean.outs.includes(c));

@@ -36,6 +36,19 @@ export interface DrawSpot {
   outs: OutsResult;
 }
 
+/**
+ * True if at least one out completes the named draw itself. Out detection counts
+ * "this category or better", so a pair of deuces on 8-8-7 has full-house cards
+ * that clear the flush bar without any flush draw. Those are not a flush draw.
+ */
+export function isGenuineDraw(hero: readonly Card[], board: readonly Card[], target: Category, outs: OutsResult): boolean {
+  return outs.outs.some((c) => {
+    const cat = categoryOf(evaluate([...hero, ...board, c]));
+    if (target === Category.Flush || target === Category.Straight) return cat === target || cat === Category.StraightFlush;
+    return cat === target;
+  });
+}
+
 function hasOtherDraw(hero: Card[], board: Card[], except: Category): boolean {
   for (const t of DRAW_TARGETS) {
     if (t.category === except) continue;
@@ -61,7 +74,7 @@ export function dealDrawSpot(rng: Rng, opts: { clean: boolean; boardLength?: 3 |
     for (const target of candidates) {
       if (heroCat >= target.category) continue;
       const outs = detectOutsToCategory(hero, board, target.category);
-      if (outs.count === 0) continue;
+      if (outs.count === 0 || !isGenuineDraw(hero, board, target.category, outs)) continue;
       if (opts.clean) {
         const allowed = CLEAN_COUNTS[target.category] ?? [];
         if (!allowed.includes(outs.count)) continue;

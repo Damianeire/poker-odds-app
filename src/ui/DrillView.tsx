@@ -155,7 +155,7 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
             Modules M2 to M9 unlock when {GATING_DRILLS.map((id) => DRILLS.find((d) => d.id === id)!.title).join(' and ')} are fluent: {FLUENCY.attempts} attempts each, {Math.round(FLUENCY.accuracy * 100)}% recent accuracy, median under {FLUENCY.medianMs / 1000}s. Gating can be turned off under Settings.
           </p>
         )}
-        {instance && <Question instance={instance} onResult={onResult} onNext={next} ghostMs={summary.medianMs} />}
+        {instance && <Question instance={instance} onResult={onResult} onNext={next} ghostMs={drillTimer === 'off' ? null : summary.medianMs} />}
       </section>
 
       <aside class="drill-stats">

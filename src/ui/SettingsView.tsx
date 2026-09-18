@@ -4,7 +4,7 @@ import { useProgress, updateProgress } from './progress';
 import { updateSettings, type DrillTimer, type Progression, type Settings } from '../srs/store';
 
 const TIMER_OPTIONS: { value: DrillTimer; label: string; text: string }[] = [
-  { value: 'off', label: 'Off', text: 'No countdown in the Drill tab. Take as long as you need.' },
+  { value: 'off', label: 'Off', text: 'No countdown or ghost bar in the Drill tab. Take as long as you need.' },
   { value: 'relaxed', label: 'Relaxed', text: 'Each drill keeps its countdown at two and a half times the standard limit.' },
   { value: 'standard', label: 'Standard', text: 'The drill limits as designed. Most drills only have one at level 3.' },
 ];

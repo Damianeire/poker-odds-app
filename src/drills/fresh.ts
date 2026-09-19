@@ -6,8 +6,12 @@ import { type Rng } from '../engine/rng';
 
 export const FRESH_TRIES = 20;
 
-/** Identifies what the learner sees. Ignores the time limit and the order of choices. */
+/**
+ * Identifies what the learner sees. Ignores the time limit and the order of choices.
+ * A drill can set `repeatKey` to say that only the concept counts, not the cards.
+ */
 export function questionKey(instance: DrillInstance): string {
+  if (instance.repeatKey !== undefined) return `repeat:${instance.repeatKey}`;
   const { timeLimitSeconds: _limit, choices, ...shown } = instance.prompt;
   return JSON.stringify({ ...shown, choices: choices ? [...choices].sort() : undefined, answer: instance.answer });
 }

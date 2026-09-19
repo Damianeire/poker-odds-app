@@ -26,6 +26,16 @@ describe('questionKey', () => {
   });
 });
 
+describe('repeatKey', () => {
+  it('treats the same concept as the same question whatever the cards', () => {
+    const a = { ...stub('Outs to a flush?', { heroCards: [1, 2] }, 9), repeatKey: 'flush|9' };
+    const b = { ...stub('Outs to a flush?', { heroCards: [30, 31] }, 9), repeatKey: 'flush|9' };
+    const c = { ...stub('Outs to a flush?', { heroCards: [1, 2] }, 8), repeatKey: 'flush|8' };
+    expect(questionKey(a)).toBe(questionKey(b));
+    expect(questionKey(a)).not.toBe(questionKey(c));
+  });
+});
+
 describe('generateFresh', () => {
   it('redraws until the question differs from the one to avoid', () => {
     let calls = 0;

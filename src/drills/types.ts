@@ -53,6 +53,11 @@ export interface DrillInstance {
   unit: Unit;
   /** Absolute, in the answer's unit. */
   tolerance: number;
+  /**
+   * When set, two questions with the same repeatKey count as the same question for the "no repeat" check,
+   * whatever cards are shown. For drills where only the concept matters, e.g. "flush draw, 9 outs".
+   */
+  repeatKey?: string;
   /** What the taught shortcut would give, if one applies. */
   shortcutAnswer?: number;
   shortcutName?: string;

@@ -38,6 +38,8 @@ export const countOuts: Drill = {
         answer: spot.outs.count,
         unit: 'count',
         tolerance: 0,
+        // The same target with the same count is the same question, even in another suit.
+        repeatKey: `${spot.target.label}|${spot.outs.count}`,
         explanation: {
           steps,
           summary: `${spot.outs.count} outs to ${spot.target.label}.`,

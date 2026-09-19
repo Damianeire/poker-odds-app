@@ -259,10 +259,22 @@ export function levelPassed(state: ProgressState, drillId: string, level: Level)
   return (mean(recent) ?? 0) >= LEVEL_PASS.accuracy;
 }
 
+/** Correct answers and answers counted in the current level window (last ten at most). */
+export function levelWindow(state: ProgressState, drillId: string, level: Level): { correct: number; count: number } {
+  const recent = state.levels[drillId]?.[level] ?? [];
+  return { correct: recent.reduce((a, b) => a + b, 0), count: recent.length };
+}
+
 /** The next level up when the current one is passed, otherwise null. */
 export function suggestedLevel(state: ProgressState, drillId: string, current: Level): Level | null {
   if (current >= 3 || !levelPassed(state, drillId, current)) return null;
   return (current + 1) as Level;
+}
+
+/** The first drill after the current one, in the given order, that has not passed level 3. Null when none remain. */
+export function nextUnfinishedDrill(state: ProgressState, orderedIds: readonly string[], currentId: string): string | null {
+  const after = orderedIds.slice(orderedIds.indexOf(currentId) + 1);
+  return after.find((id) => !levelPassed(state, id, 3)) ?? null;
 }
 
 /** How many of the given drills have passed a level. */

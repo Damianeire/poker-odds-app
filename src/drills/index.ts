@@ -1,4 +1,5 @@
 import { type Drill } from './types';
+import { MODULE_IDS } from '../srs/store';
 import { countOuts } from './countOuts';
 import { outsToPercentOneCard, outsToPercentTwoCards } from './outsToPercent';
 import { percentRatio } from './percentRatio';
@@ -48,17 +49,17 @@ export const DRILLS: readonly Drill[] = [
   whichTool, // 26
 ];
 
-/** Catalogue number, 1-based, as in the specification. */
+/** Drills in teaching order: by module, then by catalogue order within a module. */
+export const TEACHING_ORDER: readonly Drill[] = MODULE_IDS.flatMap((m) => DRILLS.filter((d) => d.module === m));
+
+/** Teaching-order number, 1-based. Differs from the specification's catalogue number. */
 export function drillNumber(id: string): number {
-  return DRILLS.findIndex((d) => d.id === id) + 1;
+  return TEACHING_ORDER.findIndex((d) => d.id === id) + 1;
 }
 
 export function drillById(id: string): Drill | undefined {
   return DRILLS.find((d) => d.id === id);
 }
-
-/** Drills in teaching order: gating drills first, then the catalogue order. */
-export const TEACHING_ORDER: readonly Drill[] = [handRanking, bestHand, ...DRILLS.filter((d) => d.id !== 'hand-ranking' && d.id !== 'best-hand')];
 
 export function drillsForModule(module: string): Drill[] {
   return DRILLS.filter((d) => d.module === module);

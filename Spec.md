@@ -316,6 +316,8 @@ Drills to build, roughly in the order they should be introduced:
 25. Which multiplier. A flop spot with villain either all-in or not. Choose the Rule of 2 or the Rule of 4 before estimating, and be graded on the choice.
 26. Which tool. A described spot. Say whether it is a pot odds calculation or an implied odds calculation, and why.
 
+The numbers above are catalogue numbers. The app shows drills numbered in teaching order (by module, then catalogue order), so its numbers differ.
+
 Drills 23 and 24 gate the rest. Require fluency on them before M2 unlocks, since out-counting is meaningless without instant hand reading.
 
 All drills whose answer is a probability must accept the answer in either percentage or ratio form, and the post-answer explanation must show both.

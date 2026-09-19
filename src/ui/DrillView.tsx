@@ -11,6 +11,8 @@ import {
   MODULE_IDS,
   LEVEL_PASS,
   levelPassed,
+  levelWindow,
+  nextUnfinishedDrill,
   suggestedLevel,
   curriculumProgress,
   curriculumOpenLevel,
@@ -89,6 +91,13 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
     else updateProgress((s) => setDrillLevel(s, drill.id, d));
   };
   const suggestion = progression === 'per-drill' ? suggestedLevel(progress, drill.id, difficulty) : null;
+  // Level 3 has no level above it, so once it is passed point at the next drill in
+  // teaching order that has not passed level 3 yet.
+  const nextDrillId =
+    progression !== 'free' && difficulty === 3 && levelPassed(progress, drill.id, 3) ? nextUnfinishedDrill(progress, availableIds, drill.id) : null;
+  const nextDrill = available.find((d) => d.id === nextDrillId) ?? null;
+  const recentWindow = levelWindow(progress, drill.id, difficulty);
+  const passMark = Math.ceil(LEVEL_PASS.attempts * LEVEL_PASS.accuracy);
 
   const next = () => {
     const fresh = generateFresh(drill, difficulty, () => createRng(++seedCounter), remembered.lastKey);
@@ -158,6 +167,14 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
             </button>
           </p>
         )}
+        {nextDrill && (
+          <p class="lock-note">
+            {LEVEL_PASS.attempts} recent answers at level 3 were {Math.round(LEVEL_PASS.accuracy * 100)}% correct or better. This drill is done. Next is {drillNumber(nextDrill.id)}. {nextDrill.title}.{' '}
+            <button type="button" class="link" onClick={() => setDrillId(nextDrill.id)}>
+              Go to drill {drillNumber(nextDrill.id)}
+            </button>
+          </p>
+        )}
         {locked.length > 0 && (
           <p class="lock-note">
             Modules M2 to M9 unlock when {GATING_DRILLS.map((id) => DRILLS.find((d) => d.id === id)!.title).join(' and ')} are fluent: {FLUENCY.attempts} attempts each, {Math.round(FLUENCY.accuracy * 100)}% recent accuracy, median under {FLUENCY.medianMs / 1000}s. Gating can be turned off under Settings.
@@ -184,6 +201,26 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
             </tr>
           </tbody>
         </table>
+        <h3>Last ten, level {difficulty}</h3>
+        <table>
+          <tbody>
+            <tr>
+              <th>Correct</th>
+              <td>{recentWindow.count > 0 ? `${recentWindow.correct} of ${recentWindow.count}` : '—'}</td>
+            </tr>
+            <tr>
+              <th>Accuracy</th>
+              <td>{recentWindow.count > 0 ? `${Math.round((100 * recentWindow.correct) / recentWindow.count)}%` : '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+        {progression !== 'free' && difficulty < 3 && (
+          <p class="stats-note">
+            {recentWindow.count < LEVEL_PASS.attempts
+              ? `${recentWindow.count} of ${LEVEL_PASS.attempts} answered at this level. Need ${passMark} of ${LEVEL_PASS.attempts} to level up.`
+              : `Need ${passMark} of ${LEVEL_PASS.attempts} to level up.`}
+          </p>
+        )}
         <h3>This drill, all time</h3>
         <table>
           <tbody>

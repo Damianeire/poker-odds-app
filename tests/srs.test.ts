@@ -14,13 +14,16 @@ import {
   addDays,
   updateSettings,
   levelPassed,
+  levelWindow,
+  nextUnfinishedDrill,
   suggestedLevel,
   curriculumProgress,
   curriculumOpenLevel,
   LEVEL_PASS,
+  MODULE_IDS,
 } from '../src/srs/store';
 import { applyTimerSetting } from '../src/drills/timer';
-import { type DrillInstance } from '../src/drills';
+import { type DrillInstance, TEACHING_ORDER, drillNumber } from '../src/drills';
 import { timedSequence } from '../src/srs/timed';
 import { generateDecision, scoreChoice, bb100 } from '../src/game/bankroll';
 import { createRng } from '../src/engine/rng';
@@ -180,6 +183,54 @@ describe('level progress', () => {
     s = recordAttempt(s, { drillId: 'b', correct: true, ms: 1000 }, T0);
     expect(s.levels['b']).toBeUndefined();
     expect(s.drills['b']!.attempts).toBe(1);
+  });
+
+  it('reports correct answers and count in the level window', () => {
+    expect(levelWindow(emptyState(), 'a', 1)).toEqual({ correct: 0, count: 0 });
+    expect(levelWindow(answers('a', 1, [true, true, false, true]), 'a', 1)).toEqual({ correct: 3, count: 4 });
+  });
+
+  it('windows only the last ten answers and keeps levels separate', () => {
+    const s = answers('a', 1, [...Array(5).fill(false), ...Array(10).fill(true)]);
+    expect(levelWindow(s, 'a', 1)).toEqual({ correct: 10, count: LEVEL_PASS.attempts });
+    expect(levelWindow(s, 'a', 2)).toEqual({ correct: 0, count: 0 });
+    const t = recordAttempt(s, { drillId: 'a', correct: true, ms: 1000 }, T0);
+    expect(levelWindow(t, 'a', 1)).toEqual({ correct: 10, count: LEVEL_PASS.attempts });
+  });
+
+  it('agrees with levelPassed', () => {
+    for (let wins = 0; wins <= 10; wins++) {
+      const s = answers('a', 1, [...Array(wins).fill(true), ...Array(10 - wins).fill(false)]);
+      const w = levelWindow(s, 'a', 1);
+      expect(levelPassed(s, 'a', 1)).toBe(w.count === LEVEL_PASS.attempts && w.correct / w.count >= LEVEL_PASS.accuracy);
+    }
+  });
+
+  it('points at the next drill that has not passed level 3', () => {
+    const ids = ['a', 'b', 'c'];
+    let s = answers('a', 3, Array(10).fill(true));
+    expect(nextUnfinishedDrill(s, ids, 'a')).toBe('b');
+    for (let i = 0; i < 10; i++) s = recordAttempt(s, { drillId: 'b', correct: true, ms: 1000, difficulty: 3 }, T0);
+    expect(nextUnfinishedDrill(s, ids, 'a')).toBe('c');
+    expect(nextUnfinishedDrill(s, ids, 'c')).toBeNull();
+    for (let i = 0; i < 10; i++) s = recordAttempt(s, { drillId: 'c', correct: true, ms: 1000, difficulty: 3 }, T0);
+    expect(nextUnfinishedDrill(s, ids, 'a')).toBeNull();
+  });
+
+  it('teaches every drill once, in module order, numbered without gaps', () => {
+    expect(TEACHING_ORDER.length).toBe(DRILLS.length);
+    expect(new Set(TEACHING_ORDER.map((d) => d.id)).size).toBe(DRILLS.length);
+    expect(TEACHING_ORDER.slice(0, 2).map((d) => d.id)).toEqual(['hand-ranking', 'best-hand']);
+    const moduleIndex = TEACHING_ORDER.map((d) => (MODULE_IDS as readonly string[]).indexOf(d.module));
+    expect(moduleIndex.every((m) => m >= 0)).toBe(true);
+    expect(moduleIndex).toEqual([...moduleIndex].sort((a, b) => a - b));
+    expect(TEACHING_ORDER.map((d) => drillNumber(d.id))).toEqual(TEACHING_ORDER.map((_, i) => i + 1));
+  });
+
+  it('suggests an M3 drill after the last M2 drill, not one from the far end of the catalogue', () => {
+    const ids = TEACHING_ORDER.map((d) => d.id);
+    const next = TEACHING_ORDER.find((d) => d.id === nextUnfinishedDrill(emptyState(), ids, 'dirty-outs'))!;
+    expect(next.module).toBe('M3');
   });
 
   it('suggests the next level and stops at 3', () => {

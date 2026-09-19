@@ -34,6 +34,19 @@ export function solomon(outs: number, unseen = 47): ShortcutResult {
   return build("Solomon's correction", outs, outs * 4 - Math.max(0, outs - 8), probTwoCards(outs, unseen));
 }
 
+/** Quick estimate of the Rule of 2 error without the exact figure: about 1 point under per 8 outs. */
+export function ruleOf2ErrorEstimate(outs: number): number {
+  return -outs / 8;
+}
+
+/**
+ * Quick estimate of the Rule of 4 error: close up to 8 outs, then about 1 point over per extra out.
+ * That is exactly what Solomon's correction takes off.
+ */
+export function ruleOf4ErrorEstimate(outs: number): number {
+  return Math.max(0, outs - 8);
+}
+
 export interface ShortcutRow {
   outs: number;
   ruleOf4: ShortcutResult;

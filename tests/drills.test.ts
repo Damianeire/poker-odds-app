@@ -144,14 +144,40 @@ describe('formula drills agree with the engine', () => {
     }
   });
 
-  it('spot-the-error has the right sign', () => {
+  it('spot-the-error level 1 picks a size band and never sits on a band edge', () => {
     const drill = DRILLS.find((d) => d.id === 'spot-the-error')!;
-    for (let seed = 1; seed <= 30; seed++) {
+    const bands = new Set<number>();
+    for (let seed = 1; seed <= 60; seed++) {
       const inst = drill.generate(createRng(seed), 1);
+      expect(inst.prompt.choices).toHaveLength(5);
       const outs = Number(inst.prompt.facts![0]!.value);
-      const est = outs * 4;
-      const exact = probTwoCards(outs) * 100;
-      expect(inst.answer).toBeCloseTo(est - exact, 10);
+      const est = Number(inst.prompt.facts![1]!.value.replace('%', ''));
+      const exact = inst.prompt.facts![1]!.label === 'Rule of 2' ? probNextCard(outs, 47) * 100 : probTwoCards(outs) * 100;
+      const err = est - exact;
+      for (const edge of [1, 3]) expect(Math.abs(Math.abs(err) - edge)).toBeGreaterThanOrEqual(0.3);
+      const band = err <= -3 ? 0 : err <= -1 ? 1 : err < 1 ? 2 : err < 3 ? 3 : 4;
+      expect(inst.answer).toBe(band);
+      bands.add(band);
+    }
+    expect(bands.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('spot-the-error levels 2 and 3 have the right sign, hints and tolerance', () => {
+    const drill = DRILLS.find((d) => d.id === 'spot-the-error')!;
+    for (const level of [2, 3] as const) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const inst = drill.generate(createRng(seed), level);
+        const outs = Number(inst.prompt.facts![0]!.value);
+        const name = inst.prompt.facts![1]!.label;
+        const est = Number(inst.prompt.facts![1]!.value.replace('%', ''));
+        const exact = name === 'Rule of 2' ? probNextCard(outs, 47) * 100 : probTwoCards(outs) * 100;
+        expect(inst.answer).toBeCloseTo(est - exact, 10);
+        expect(inst.tolerance).toBe(name === 'Rule of 2' ? 0.5 : 1.5);
+        expect(inst.prompt.hint === undefined).toBe(level === 3 || name === "Solomon's correction");
+        // A quick estimate of the error, no exact figure needed, lands inside the tolerance.
+        const quick = name === 'Rule of 2' ? -outs / 8 : name === 'Rule of 4' ? Math.max(0, outs - 8) : 0;
+        expect(grade(inst, quick).correct, `${name} ${outs} outs`).toBe(true);
+      }
     }
   });
 

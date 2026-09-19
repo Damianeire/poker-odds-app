@@ -10,6 +10,8 @@ import {
   oneInN,
   bracketAnchors,
   anchorAt,
+  ruleOf2ErrorEstimate,
+  ruleOf4ErrorEstimate,
 } from '../src/engine/shortcuts';
 import { probTwoCards, probNextCard } from '../src/engine/outs';
 
@@ -104,5 +106,18 @@ describe('shortcuts', () => {
     const [w1, w2] = bracketAnchors(5);
     expect(w1).toEqual(w2);
     expect(() => bracketAnchors(0.5)).toThrow();
+  });
+
+  it('quick error estimates track the true errors', () => {
+    for (let o = 1; o <= 21; o++) {
+      // Rule of 2: about 1 point under per 8 outs.
+      expect(Math.abs(ruleOf2(o).error - ruleOf2ErrorEstimate(o))).toBeLessThan(0.1);
+      // Rule of 4: what Solomon takes off, good to about a point either way.
+      expect(Math.abs(ruleOf4(o).error - ruleOf4ErrorEstimate(o))).toBeLessThan(1.3);
+      // So Solomon is never more than about a point out.
+      expect(Math.abs(solomon(o).error)).toBeLessThan(1.3);
+    }
+    expect(ruleOf4ErrorEstimate(15)).toBe(7);
+    expect(ruleOf4ErrorEstimate(6)).toBe(0);
   });
 });

@@ -1,5 +1,5 @@
 import { type LearnPage } from './types';
-import { ruleOf2, ruleOf4, solomon } from '../engine/shortcuts';
+import { ruleOf2, ruleOf4, solomon, ruleOf2ErrorEstimate, ruleOf4ErrorEstimate } from '../engine/shortcuts';
 import { probNextCard, probTwoCards } from '../engine/outs';
 import { pc, n } from './helpers';
 
@@ -22,6 +22,31 @@ export const m4: LearnPage = {
     },
     { kind: 'h', text: 'Solomon’s correction' },
     { kind: 'formula', label: 'Corrected Rule of 4', formula: 'outs x 4 - max(0, outs - 8)', value: () => `15 outs: 60 - 7 = ${solomon(15).estimate}%, against an exact ${pc(probTwoCards(15))}. The raw rule says ${ruleOf4(15).estimate}%.` },
+    { kind: 'h', text: 'How wrong is the shortcut, without the table' },
+    {
+      kind: 'p',
+      text: () =>
+        'You never need the exact figure at the table. Each shortcut is wrong in a predictable way, and you can estimate the error from the out count alone.',
+    },
+    {
+      kind: 'formula',
+      label: 'Rule of 2 error',
+      formula: 'understates by about outs / 8 points',
+      value: () => `15 outs: 15 / 8 is about ${n(Math.abs(ruleOf2ErrorEstimate(15)), 1)} points under. The actual error is ${signed(ruleOf2(15).error)}.`,
+    },
+    {
+      kind: 'formula',
+      label: 'Rule of 4 error',
+      formula: 'close up to 8 outs, then overstates by about outs - 8 points',
+      value: () => `15 outs: 15 - 8 = ${ruleOf4ErrorEstimate(15)} points over. The actual error is ${signed(ruleOf4(15).error)}. That ${ruleOf4ErrorEstimate(15)} is exactly what Solomon takes off.`,
+    },
+    {
+      kind: 'p',
+      text: () => {
+        const worst = Math.max(...OUTS.map((o) => Math.abs(solomon(o).error)));
+        return `Solomon’s correction is the practical target. Across ${OUTS[0]} to ${OUTS[OUTS.length - 1]} outs it is never more than ${n(worst, 1)} points from exact, which is well inside the precision of a break-even threshold. If your estimate is that close, it is correct.`;
+      },
+    },
     {
       kind: 'table',
       caption: 'Estimate, exact, and signed error in percentage points. Positive means the shortcut overstates.',

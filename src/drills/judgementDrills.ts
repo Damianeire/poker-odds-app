@@ -53,7 +53,7 @@ export const dirtyOuts: Drill = {
         },
         answer: winning,
         unit: 'count',
-        tolerance: difficulty === 3 ? 0 : 1,
+        tolerance: 0,
         explanation: {
           steps: [
             { text: `You: ${describeScore(evaluate([...hero, ...board]))}. Villain: ${describeScore(evaluate([...villain, ...board]))}.` },

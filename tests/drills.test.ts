@@ -275,6 +275,13 @@ describe('Phase 2 drills agree with the engine', () => {
     }
   });
 
+  it('dirty outs is an exact count at every level', () => {
+    const drill = byId('dirty-outs');
+    for (const level of [1, 2, 3] as const) {
+      for (let seed = 1; seed <= 5; seed++) expect(drill.generate(createRng(seed), level).tolerance).toBe(0);
+    }
+  });
+
   it('which-multiplier grades on the all-in fact', () => {
     const drill = byId('which-multiplier');
     let allIn = 0;

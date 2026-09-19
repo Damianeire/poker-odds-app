@@ -38,6 +38,8 @@ export function Question({ instance, onResult, onNext, ghostMs, compact }: Props
   const reported = useRef(false);
 
   const p = instance.prompt;
+  // Multiple choice and zero-tolerance drills have one right answer, so tolerance wording is noise.
+  const exact = !!p.choices || instance.tolerance === 0;
   const answered = result !== null || timedOut;
 
   // Reset on a new instance.
@@ -213,7 +215,7 @@ export function Question({ instance, onResult, onNext, ghostMs, compact }: Props
 
       {answered && (
         <div class={`result ${result?.correct ? 'ok' : 'miss'}`} aria-live="polite">
-          <div class="result-line">{timedOut ? 'Time expired.' : result?.correct ? 'Within tolerance.' : 'Outside tolerance.'}</div>
+          <div class="result-line">{timedOut ? 'Time expired.' : result?.correct ? (exact ? 'Correct.' : 'Within tolerance.') : exact ? 'Incorrect.' : 'Outside tolerance.'}</div>
           <table class="three-numbers">
             <tbody>
               <tr>
@@ -230,7 +232,7 @@ export function Question({ instance, onResult, onNext, ghostMs, compact }: Props
                 <th>Exact</th>
                 <td>{p.choices ? p.choices[instance.answer] : formatValue(instance.answer, instance.unit)}</td>
               </tr>
-              {!p.choices && (
+              {!exact && (
                 <tr>
                   <th>Tolerance</th>
                   <td>&plusmn; {formatValue(instance.tolerance, instance.unit)}</td>

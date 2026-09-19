@@ -1,7 +1,7 @@
 import { type LearnPage } from './types';
 import { choose } from '../engine/math';
 import { probNextCard, probTwoCards } from '../engine/outs';
-import { percentToOddsAgainst, oddsAgainstToPercent, formatOddsAgainst } from '../engine/shortcuts';
+import { percentToOddsAgainst, oddsAgainstToPercent, formatOddsAgainst, oneInN, bracketAnchors, anchorAt } from '../engine/shortcuts';
 import { pc, odds, n } from './helpers';
 
 const OUTS = [1, 2, 4, 6, 8, 9, 12, 15];
@@ -48,12 +48,57 @@ export const m3: LearnPage = {
     },
     { kind: 'formula', label: 'Percent to odds against', formula: '(100 - p) : p', value: () => `${pc(0.2, 0)}: (100 - 20) : 20 = ${formatOddsAgainst(percentToOddsAgainst(20))}.` },
     { kind: 'formula', label: 'Odds against to percent', formula: '100 x 1 / (x + 1)', value: () => `${formatOddsAgainst(4)}: 100 / 5 = ${n(oddsAgainstToPercent(4))}%. Three to two is the same as ${formatOddsAgainst(1.5)}: ${n(oddsAgainstToPercent(1.5))}%.` },
+    { kind: 'h', text: 'Working it out in your head' },
+    {
+      kind: 'p',
+      text: () =>
+        'Both conversions are one reciprocal. One hit for every x misses is one outcome in x + 1, so the chance is 1 in N with N = x + 1. Odds against are (N - 1) to 1, and the percentage is 100 / N.',
+    },
+    {
+      kind: 'formula',
+      label: 'Percent to odds against',
+      formula: 'how many times p goes into 100, minus 1',
+      value: () => `${pc(0.2, 0)} goes into 100 ${n(oneInN(20), 0)} times, so ${formatOddsAgainst(oneInN(20) - 1)}. ${pc(0.18, 0)} goes into 100 about ${n(oneInN(18), 1)} times, so about ${formatOddsAgainst(oneInN(18) - 1)} (exact ${formatOddsAgainst(percentToOddsAgainst(18), 2)}).`,
+    },
+    {
+      kind: 'formula',
+      label: 'Odds against to percent',
+      formula: 'add 1, then divide into 100',
+      value: () => {
+        const [lo, hi] = bracketAnchors(7.5 + 1);
+        return `${formatOddsAgainst(7.5)}: 100 / ${n(7.5 + 1, 1)}. That sits between 1 in ${lo.n} (${n(lo.percent, 1)}%) and 1 in ${hi.n} (${n(hi.percent, 1)}%), so about ${n(oddsAgainstToPercent(7.5), 0)}% (exact ${n(oddsAgainstToPercent(7.5), 2)}%).`;
+      },
+    },
+    {
+      kind: 'table',
+      caption: 'Anchors: rebuild them by dividing, do not memorise them',
+      build: () => ({
+        head: ['1 in N', 'Percent', 'Odds against'],
+        rows: [2, 3, 4, 5, 6, 7, 8, 9, 10].map((k) => {
+          const a = anchorAt(k);
+          return [`1 in ${k}`, `${n(a.percent, 1)}%`, formatOddsAgainst(a.against)];
+        }),
+      }),
+    },
+    {
+      kind: 'p',
+      text: () => {
+        const [lo, hi] = bracketAnchors(oneInN(18));
+        return `For anything between two anchors, find the two it sits between and pick a point between them. ${pc(0.18, 0)} is between ${n(lo.percent, 1)}% and ${n(hi.percent, 1)}%, nearer ${n(hi.percent, 1)}%, so the odds are between ${lo.against} and ${hi.against} to 1, nearer ${hi.against}.`;
+      },
+    },
+    { kind: 'h', text: 'The deck gives you the odds directly' },
+    {
+      kind: 'p',
+      text: () =>
+        `For a draw you can skip percentages. Odds against are ways to miss to ways to hit, and the deck tells you both. Nine outs on the flop leave ${47 - 9} unseen cards that miss and 9 that hit: ${47 - 9} to 9, which is ${n((47 - 9) / 9, 1)} to 1. Divide the two numbers and you have the odds.`,
+    },
     {
       kind: 'table',
       caption: 'Draws as odds against, computed',
       build: () => ({
-        head: ['Outs', 'Next card (flop)', 'By the river (flop)'],
-        rows: OUTS.map((o) => [String(o), odds(probNextCard(o, 47)), odds(probTwoCards(o))]),
+        head: ['Outs', 'Misses to hits (flop)', 'Next card (flop)', 'By the river (flop)'],
+        rows: OUTS.map((o) => [String(o), `${47 - o} to ${o}`, odds(probNextCard(o, 47)), odds(probTwoCards(o))]),
       }),
     },
   ],

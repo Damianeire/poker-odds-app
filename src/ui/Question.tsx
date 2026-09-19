@@ -179,6 +179,8 @@ export function Question({ instance, onResult, onNext, ghostMs, compact }: Props
         </div>
       )}
 
+      {!answered && p.hint && <p class="hint method-hint">{p.hint}</p>}
+
       {!answered && !p.choices && (
         <form
           class="answer-form"

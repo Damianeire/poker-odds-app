@@ -30,6 +30,8 @@ export interface PromptSpec {
   timeLimitSeconds?: number;
   /** Label for the answer field, e.g. "Outs" or "Percent". */
   answerLabel?: string;
+  /** A one-line method reminder shown above the answer box. Drills drop it at higher levels. */
+  hint?: string;
 }
 
 export interface ExplanationStep {

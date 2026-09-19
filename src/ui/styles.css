@@ -61,6 +61,7 @@ code { font-family: var(--mono); font-size: 13px; color: var(--accent); }
 .muted { color: var(--fg-muted); }
 .error { color: var(--miss); font-size: 13px; }
 .hint { color: var(--fg-muted); font-size: 13px; }
+.method-hint { margin: 0 0 8px; }
 
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); font-weight: normal; }

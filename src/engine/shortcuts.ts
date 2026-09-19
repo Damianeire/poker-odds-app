@@ -65,6 +65,37 @@ export function oddsAgainstToPercent(against: number, forPart = 1): number {
   return (100 * forPart) / (against + forPart);
 }
 
+/** A "1 in N" anchor: N whole, the chance 100 / N per cent, and the odds against N - 1 to 1. */
+export interface Anchor {
+  n: number;
+  percent: number;
+  against: number;
+}
+
+/**
+ * How many times a percentage goes into 100, i.e. the N in "1 in N".
+ * Odds against are N - 1 to 1, so this is the whole mental conversion.
+ */
+export function oneInN(percent: number): number {
+  if (!(percent > 0) || percent >= 100) throw new Error(`percent must be in (0, 100), got ${percent}`);
+  return 100 / percent;
+}
+
+export function anchorAt(n: number): Anchor {
+  return { n, percent: 100 / n, against: n - 1 };
+}
+
+/**
+ * The whole-number anchors either side of a "1 in N" figure, for interpolating in your head.
+ * Both are the same anchor when n is already whole. Needs n of at least 1.
+ */
+export function bracketAnchors(n: number): [Anchor, Anchor] {
+  if (!(n >= 1)) throw new Error(`n must be at least 1, got ${n}`);
+  const lower = Math.floor(n + 1e-9);
+  const upper = Math.abs(n - lower) < 1e-9 ? lower : lower + 1;
+  return [anchorAt(lower), anchorAt(upper)];
+}
+
 /** Format odds against as "4.2 to 1". */
 export function formatOddsAgainst(against: number, places = 1): string {
   return `${trimNumber(against, places)} to 1`;

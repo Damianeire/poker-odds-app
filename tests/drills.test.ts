@@ -275,6 +275,31 @@ describe('Phase 2 drills agree with the engine', () => {
     }
   });
 
+  it('percent-ratio gives a method hint at levels 1 and 2 only, and level 2 percents are multiples of 5', () => {
+    const drill = byId('percent-ratio');
+    for (const level of [1, 2, 3] as const) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const inst = drill.generate(createRng(seed), level);
+        expect(inst.prompt.hint === undefined).toBe(level === 3);
+        if (level === 2 && inst.prompt.facts![0]!.label === 'Probability') {
+          expect(parseFloat(inst.prompt.facts![0]!.value) % 5).toBe(0);
+        }
+      }
+    }
+  });
+
+  it('percent-ratio working shows the 1-in-N route and lands on the exact answer', () => {
+    const drill = byId('percent-ratio');
+    for (const level of [1, 2, 3] as const) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const inst = drill.generate(createRng(seed), level);
+        const text = inst.explanation.steps.map((s) => s.text).join(' ');
+        expect(text).toContain('1 in N');
+        expect(grade(inst, inst.answer).correct).toBe(true);
+      }
+    }
+  });
+
   it('dirty outs is an exact count at every level', () => {
     const drill = byId('dirty-outs');
     for (const level of [1, 2, 3] as const) {

@@ -2,10 +2,10 @@
 // accuracy and median response time, with a session history.
 
 import { useRef, useState } from 'preact/hooks';
-import { TEACHING_ORDER, generateFresh, questionKey, type Drill, type DrillInstance } from '../drills';
+import { TEACHING_ORDER, generateFresh, unlockedModules, questionKey, type Drill, type DrillInstance } from '../drills';
 import { createRng } from '../engine/rng';
 import { timedSequence, TIMED_QUESTIONS } from '../srs/timed';
-import { unlockedModules, addTimedSession, median } from '../srs/store';
+import { addTimedSession, median } from '../srs/store';
 import { useProgress, updateProgress } from './progress';
 import { Question, type QuestionResult } from './Question';
 

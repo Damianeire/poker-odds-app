@@ -53,7 +53,7 @@ export type Progression = 'free' | 'per-drill' | 'curriculum';
 
 export interface Settings {
   fourColour: boolean;
-  /** Require fluency on the M1 drills before other modules unlock. */
+  /** Open modules one at a time, each after the previous module's drills pass level 1. */
   gating: boolean;
   drillTimer: DrillTimer;
   progression: Progression;
@@ -230,33 +230,32 @@ export function weakestDrills(state: ProgressState, drillIds: readonly string[],
   });
 }
 
-export const FLUENCY = { attempts: 20, accuracy: 0.9, medianMs: 10000 };
-
-/** Fluent: enough attempts, high recent accuracy, and quick. */
-export function isFluent(state: ProgressState, drillId: string): boolean {
-  const r = state.drills[drillId];
-  if (!r || r.attempts < FLUENCY.attempts) return false;
-  const acc = mean(r.recent) ?? 0;
-  const med = median(r.times) ?? Infinity;
-  return acc >= FLUENCY.accuracy && med <= FLUENCY.medianMs;
-}
-
-export const GATING_DRILLS: readonly string[] = ['hand-ranking', 'best-hand'];
-
 export const MODULE_IDS = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'] as const;
-
-/** M1 is always open. The rest open once the gating drills are fluent, or gating is off. */
-export function unlockedModules(state: ProgressState): string[] {
-  if (!state.settings.gating) return MODULE_IDS.slice();
-  const fluent = GATING_DRILLS.every((id) => isFluent(state, id));
-  return fluent ? MODULE_IDS.slice() : ['M1'];
-}
 
 /** A level is passed when the last ten answers at it exist and at least 80% were correct. */
 export function levelPassed(state: ProgressState, drillId: string, level: Level): boolean {
   const recent = state.levels[drillId]?.[level] ?? [];
   if (recent.length < LEVEL_PASS.attempts) return false;
   return (mean(recent) ?? 0) >= LEVEL_PASS.accuracy;
+}
+
+/** A drill is cleared once it has passed level 1 (or any higher level). */
+export function drillCleared(state: ProgressState, drillId: string): boolean {
+  return ([1, 2, 3] as const).some((l) => levelPassed(state, drillId, l));
+}
+
+/**
+ * Modules open one at a time. M1 is always open; each later module opens once every drill in the
+ * one before it is cleared. With gating off, everything is open. `drillsIn` lists a module's drill ids.
+ */
+export function openModules(state: ProgressState, drillsIn: (module: string) => readonly string[]): string[] {
+  if (!state.settings.gating) return MODULE_IDS.slice();
+  const open: string[] = [MODULE_IDS[0]];
+  for (let i = 1; i < MODULE_IDS.length; i++) {
+    if (!drillsIn(MODULE_IDS[i - 1]!).every((id) => drillCleared(state, id))) break;
+    open.push(MODULE_IDS[i]!);
+  }
+  return open;
 }
 
 /** Correct answers and answers counted in the current level window (last ten at most). */

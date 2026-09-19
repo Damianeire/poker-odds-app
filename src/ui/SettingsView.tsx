@@ -70,7 +70,7 @@ export function SettingsView() {
         <h3>Modules</h3>
         <label class="toggle">
           <input type="checkbox" checked={s.gating} onChange={(e) => set({ gating: (e.target as HTMLInputElement).checked })} />
-          Require fluency on hand ranking and best hand before other modules unlock
+          Open modules one at a time, each after every drill in the one before has passed level 1
         </label>
       </section>
 

@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { DRILLS, TEACHING_ORDER, drillNumber, generateFresh, questionKey, type Difficulty, type DrillInstance } from '../drills';
+import { DRILLS, TEACHING_ORDER, drillNumber, generateFresh, unlockedModules, gatingProgress, questionKey, type Difficulty, type DrillInstance } from '../drills';
 import { createRng } from '../engine/rng';
 import {
   recordAttempt,
   summarise,
-  unlockedModules,
   dueDrills,
-  FLUENCY,
-  GATING_DRILLS,
   MODULE_IDS,
   LEVEL_PASS,
   levelPassed,
@@ -119,6 +116,7 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
   };
 
   const locked = MODULE_IDS.filter((m) => !unlocked.includes(m));
+  const gate = gatingProgress(progress);
 
   return (
     <div class="drill-layout">
@@ -177,7 +175,7 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
         )}
         {locked.length > 0 && (
           <p class="lock-note">
-            Modules M2 to M9 unlock when {GATING_DRILLS.map((id) => DRILLS.find((d) => d.id === id)!.title).join(' and ')} are fluent: {FLUENCY.attempts} attempts each, {Math.round(FLUENCY.accuracy * 100)}% recent accuracy, median under {FLUENCY.medianMs / 1000}s. Gating can be turned off under Settings.
+            {gate ? `${gate.module} drills cleared: ${gate.cleared} of ${gate.total}. ` : ''}Each module opens the next once all its drills pass level 1 ({LEVEL_PASS.attempts} answers, {Math.round(LEVEL_PASS.accuracy * 100)}% correct or better). Gating can be turned off under Settings.
           </p>
         )}
         {instance && <Question instance={instance} onResult={onResult} onNext={next} ghostMs={drillTimer === 'off' ? null : summary.medianMs} />}

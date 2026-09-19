@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { PAGES, GLOSSARY, type Block, type TableData } from '../content';
-import { DRILLS } from '../drills';
+import { DRILLS, unlockedModules, gatingProgress } from '../drills';
 import { parseCards } from '../engine/cards';
-import { unlockedModules, GATING_DRILLS } from '../srs/store';
 import { useProgress } from './progress';
 import { CardRow } from './Card';
 
@@ -114,7 +113,7 @@ export function LearnView({ onDrill }: { onDrill: (drillId: string) => void }) {
               <h3>Drills for this module</h3>
               {!pageUnlocked && (
                 <p class="lock-note">
-                  Locked until {GATING_DRILLS.map((id) => DRILLS.find((d) => d.id === id)!.title).join(' and ')} are fluent.
+                  Locked until every drill in {gatingProgress(progress)?.module} has passed level 1.
                   Gating can be turned off under Settings.
                 </p>
               )}

@@ -318,7 +318,7 @@ Drills to build, roughly in the order they should be introduced:
 
 The numbers above are catalogue numbers. The app shows drills numbered in teaching order (by module, then catalogue order), so its numbers differ.
 
-Drills 23 and 24 gate the rest. Require fluency on them before M2 unlocks, since out-counting is meaningless without instant hand reading.
+Drills 23 and 24 gate the rest, since out-counting is meaningless without instant hand reading. Modules then open one at a time: M2 unlocks once every M1 drill has passed level 1 (ten answers, 80% correct or better), M3 once every M2 drill has, and so on. Passing a higher level also clears a drill. Speed is not part of the gate; Timed Mode is where it is trained. Settings can turn gating off.
 
 All drills whose answer is a probability must accept the answer in either percentage or ratio form, and the post-answer explanation must show both.
 

@@ -4,8 +4,6 @@ import {
   recordAttempt,
   dueDrills,
   weakestDrills,
-  isFluent,
-  unlockedModules,
   calibrationScore,
   exportJson,
   importJson,
@@ -27,7 +25,7 @@ import { type DrillInstance, TEACHING_ORDER, drillNumber } from '../src/drills';
 import { timedSequence } from '../src/srs/timed';
 import { generateDecision, scoreChoice, bb100 } from '../src/game/bankroll';
 import { createRng } from '../src/engine/rng';
-import { DRILLS } from '../src/drills';
+import { DRILLS, unlockedModules, gatingProgress, drillsForModule } from '../src/drills';
 
 const T0 = new Date('2026-09-17T10:00:00Z');
 
@@ -77,21 +75,39 @@ describe('Leitner scheduling', () => {
     expect(calibrationScore(s)).toBe(2);
   });
 
-  it('gates modules on fluency of the M1 drills', () => {
+  it('opens modules one at a time as every drill in the previous one passes level 1', () => {
+    const pass = (s: ReturnType<typeof emptyState>, module: string, correct = 10) => {
+      for (const d of drillsForModule(module)) {
+        for (let i = 0; i < 10; i++) s = recordAttempt(s, { drillId: d.id, correct: i < correct, ms: 30000, difficulty: 1 }, T0);
+      }
+      return s;
+    };
     let s = emptyState();
     expect(unlockedModules(s)).toEqual(['M1']);
-    for (const id of ['hand-ranking', 'best-hand']) {
-      for (let i = 0; i < 20; i++) s = recordAttempt(s, { drillId: id, correct: true, ms: 4000 }, T0);
+    expect(gatingProgress(s)).toEqual({ module: 'M1', cleared: 0, total: 2 });
+    // Only one of the two M1 drills cleared: still shut.
+    for (let i = 0; i < 10; i++) s = recordAttempt(s, { drillId: 'hand-ranking', correct: true, ms: 1000, difficulty: 1 }, T0);
+    expect(unlockedModules(s)).toEqual(['M1']);
+    expect(gatingProgress(s)?.cleared).toBe(1);
+    // Below 80% at level 1 does not clear it.
+    expect(unlockedModules(pass(emptyState(), 'M1', 7))).toEqual(['M1']);
+    // Speed does not matter, 80% does.
+    s = pass(emptyState(), 'M1', 8);
+    expect(unlockedModules(s)).toEqual(['M1', 'M2']);
+    expect(gatingProgress(s)?.module).toBe('M2');
+    // Passing M3 without M2 opens nothing more: the chain runs in order.
+    expect(unlockedModules(pass(s, 'M3'))).toEqual(['M1', 'M2']);
+    s = pass(pass(s, 'M2'), 'M3');
+    expect(unlockedModules(s)).toEqual(['M1', 'M2', 'M3', 'M4']);
+    // Passing a higher level also clears a drill.
+    let hi = emptyState();
+    for (const d of drillsForModule('M1')) {
+      for (let i = 0; i < 10; i++) hi = recordAttempt(hi, { drillId: d.id, correct: true, ms: 1000, difficulty: 2 }, T0);
     }
-    expect(isFluent(s, 'hand-ranking')).toBe(true);
-    expect(unlockedModules(s).length).toBe(9);
-    // Slow answers are not fluent.
-    let slow = emptyState();
-    for (const id of ['hand-ranking', 'best-hand']) {
-      for (let i = 0; i < 20; i++) slow = recordAttempt(slow, { drillId: id, correct: true, ms: 15000 }, T0);
-    }
-    expect(unlockedModules(slow)).toEqual(['M1']);
-    expect(unlockedModules(updateSettings(slow, { gating: false })).length).toBe(9);
+    expect(unlockedModules(hi)).toEqual(['M1', 'M2']);
+    // Gating off opens everything.
+    expect(unlockedModules(updateSettings(emptyState(), { gating: false })).length).toBe(9);
+    expect(gatingProgress(updateSettings(emptyState(), { gating: false }))).toBeNull();
   });
 
   it('exports and imports losslessly and rejects bad input', () => {

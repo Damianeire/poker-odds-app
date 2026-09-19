@@ -1,8 +1,8 @@
 // Progress: which concepts are weakest, calibration, and export/import.
 
 import { useRef, useState } from 'preact/hooks';
-import { DRILLS } from '../drills';
-import { weakestDrills, calibrationScore, exportJson, importJson, MODULE_IDS, unlockedModules } from '../srs/store';
+import { DRILLS, unlockedModules } from '../drills';
+import { weakestDrills, calibrationScore, exportJson, importJson, MODULE_IDS } from '../srs/store';
 import { useProgress, setProgress } from './progress';
 
 export function ProgressView() {

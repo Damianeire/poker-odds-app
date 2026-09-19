@@ -1,5 +1,5 @@
 import { type Drill } from './types';
-import { MODULE_IDS } from '../srs/store';
+import { MODULE_IDS, openModules, drillCleared, type ProgressState } from '../srs/store';
 import { countOuts } from './countOuts';
 import { outsToPercentOneCard, outsToPercentTwoCards } from './outsToPercent';
 import { percentRatio } from './percentRatio';
@@ -63,4 +63,18 @@ export function drillById(id: string): Drill | undefined {
 
 export function drillsForModule(module: string): Drill[] {
   return DRILLS.filter((d) => d.module === module);
+}
+
+/** Modules currently open. M1 always; each next one once every drill in the one before has passed level 1. */
+export function unlockedModules(state: ProgressState): string[] {
+  return openModules(state, (m) => drillsForModule(m).map((d) => d.id));
+}
+
+/** The open module whose drills are holding the next one shut, with how many of them are cleared. Null when nothing is locked. */
+export function gatingProgress(state: ProgressState): { module: string; cleared: number; total: number } | null {
+  const open = unlockedModules(state);
+  if (open.length === MODULE_IDS.length) return null;
+  const module = open[open.length - 1]!;
+  const ids = drillsForModule(module).map((d) => d.id);
+  return { module, cleared: ids.filter((id) => drillCleared(state, id)).length, total: ids.length };
 }

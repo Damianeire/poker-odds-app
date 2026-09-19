@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DRILLS, FRESH_TRIES, generateFresh, questionKey, type Drill, type DrillInstance } from '../src/drills';
+import { DRILLS, FRESH_TRIES, conceptKey, generateFresh, questionKey, type Drill, type DrillInstance } from '../src/drills';
 import { createRng } from '../src/engine/rng';
 
 function stub(text: string, extra: Partial<DrillInstance['prompt']> = {}, answer = 1): DrillInstance {
@@ -33,6 +33,34 @@ describe('repeatKey', () => {
     const c = { ...stub('Outs to a flush?', { heroCards: [1, 2] }, 8), repeatKey: 'flush|8' };
     expect(questionKey(a)).toBe(questionKey(b));
     expect(questionKey(a)).not.toBe(questionKey(c));
+  });
+});
+
+describe('repeatIgnoresCards', () => {
+  it('conceptKey ignores cards but not numbers, text or answer', () => {
+    const a = stub('You have 9 outs to a flush. Call or fold?', { heroCards: [1, 2], board: [3, 4, 5], facts: [{ label: 'Pot', value: '100' }] });
+    const b = stub('You have 9 outs to a flush. Call or fold?', { heroCards: [30, 31], board: [7, 8, 9], facts: [{ label: 'Pot', value: '100' }] });
+    expect(conceptKey(a)).toBe(conceptKey(b));
+    expect(questionKey(a)).not.toBe(questionKey(b));
+    expect(conceptKey(a)).not.toBe(conceptKey(stub(a.prompt.text, { facts: [{ label: 'Pot', value: '120' }] })));
+    expect(conceptKey(a)).not.toBe(conceptKey(stub('You have 8 outs to a straight. Call or fold?', { facts: a.prompt.facts! })));
+  });
+
+  it('generateFresh redraws when only the cards differ', () => {
+    let calls = 0;
+    const drill = {
+      repeatIgnoresCards: true,
+      generate: () => stub('Same numbers', { heroCards: [calls], facts: [{ label: 'Pot', value: calls++ < 2 ? '100' : '200' }] }),
+    } as unknown as Drill;
+    const first = generateFresh(drill, 1, () => createRng(1), null);
+    calls = 0;
+    const next = generateFresh(drill, 1, () => createRng(1), questionKey(first));
+    expect(next.prompt.facts![0]!.value).toBe('200');
+  });
+
+  it('is set on every draw drill', () => {
+    const ids = DRILLS.filter((d) => d.repeatIgnoresCards).map((d) => d.id).sort();
+    expect(ids).toEqual(['call-or-fold', 'dirty-outs', 'implied-odds', 'price-out', 'semi-bluff-ev', 'villain-dependent', 'which-multiplier']);
   });
 });
 

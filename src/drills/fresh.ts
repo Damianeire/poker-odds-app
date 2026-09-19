@@ -16,6 +16,12 @@ export function questionKey(instance: DrillInstance): string {
   return JSON.stringify({ ...shown, choices: choices ? [...choices].sort() : undefined, answer: instance.answer });
 }
 
+/** Like questionKey but blind to the cards shown: the same numbers, target and answer in another suit match. */
+export function conceptKey(instance: DrillInstance): string {
+  const { timeLimitSeconds: _limit, heroCards: _hero, board: _board, villainCards: _villain, handRows: _rows, choices, ...shown } = instance.prompt;
+  return `concept:${JSON.stringify({ ...shown, choices: choices ? [...choices].sort() : undefined, answer: instance.answer })}`;
+}
+
 /**
  * Generate a question whose key differs from `avoidKey`. Draws a new rng per attempt.
  * A draw that throws (a generator that could not build a spot) counts as a failed attempt.
@@ -33,6 +39,7 @@ export function generateFresh(drill: Drill, difficulty: Difficulty, nextRng: () 
       failure = error;
       continue;
     }
+    if (drill.repeatIgnoresCards && candidate.repeatKey === undefined) candidate = { ...candidate, repeatKey: conceptKey(candidate) };
     last = candidate;
     if (avoidKey === null || questionKey(candidate) !== avoidKey) return candidate;
   }

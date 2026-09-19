@@ -8,6 +8,7 @@ import { type Drill, type DrillInstance, num } from './types';
 
 export const priceOut: Drill = {
   id: 'price-out',
+  repeatIgnoresCards: true,
   module: 'M5',
   title: 'Bet sizing against a draw',
   description:

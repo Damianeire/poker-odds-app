@@ -12,6 +12,7 @@ import { type Drill, type DrillInstance, num } from './types';
 
 export const semiBluffEv: Drill = {
   id: 'semi-bluff-ev',
+  repeatIgnoresCards: true,
   module: 'M8',
   title: 'Semi-bluff EV',
   description: 'You bet a draw. Fold equity is given. Compute the EV of the bet in chips, and see it decomposed.',
@@ -58,6 +59,7 @@ export const semiBluffEv: Drill = {
 
 export const impliedOdds: Drill = {
   id: 'implied-odds',
+  repeatIgnoresCards: true,
   module: 'M7',
   title: 'Implied odds',
   description: 'The immediate pot odds are insufficient. State how much more you must expect to win on later streets for the call to break even.',

@@ -15,6 +15,7 @@ const DIRTY_OUTS_MAX_ATTEMPTS = 50000;
 
 export const dirtyOuts: Drill = {
   id: 'dirty-outs',
+  repeatIgnoresCards: true,
   module: 'M2',
   title: 'Dirty outs',
   description: 'A coordinated board and a villain hand face up. Start from the raw out count for your draw and discount the cards that complete it but still lose.',
@@ -75,6 +76,7 @@ type Param = 'payoffPropensity' | 'aggression' | 'foldFrequency' | 'rangeWidth';
 
 export const villainDependent: Drill = {
   id: 'villain-dependent',
+  repeatIgnoresCards: true,
   module: 'M7',
   title: 'Villain-dependent call',
   description: 'The same hand, board and bet against two villain profiles. Decide for each; the explanation names the parameter that flipped the answer.',
@@ -138,6 +140,7 @@ export const villainDependent: Drill = {
 
 export const whichMultiplier: Drill = {
   id: 'which-multiplier',
+  repeatIgnoresCards: true,
   module: 'M4',
   title: 'Which multiplier',
   description: 'A flop spot. Villain is either all-in or has chips behind. Choose the Rule of 2 or the Rule of 4 before you estimate. The choice is what is graded.',

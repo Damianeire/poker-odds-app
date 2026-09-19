@@ -70,6 +70,11 @@ export interface Drill {
   title: string;
   /** One or two plain sentences. */
   description: string;
+  /**
+   * For draw drills: two questions that differ only in the cards (another suit, another
+   * draw of the same kind) count as the same question for the "no repeat" check.
+   */
+  repeatIgnoresCards?: boolean;
   generate(rng: Rng, difficulty: Difficulty): DrillInstance;
 }
 

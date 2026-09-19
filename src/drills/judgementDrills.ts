@@ -9,13 +9,17 @@ import { ruleOf2, ruleOf4, solomon } from '../engine/shortcuts';
 import { dealDrawSpot, pickPot, pickBet, DRAW_TARGETS, isGenuineDraw } from './deal';
 import { type Drill, type DrillInstance, num } from './types';
 
+// Level 1 accepts about one deal in 600, so the count needed is roughly geometric with that mean.
+// A cap of 5,000 failed about once in 3,000 seeds; this one makes a failure practically impossible.
+const DIRTY_OUTS_MAX_ATTEMPTS = 50000;
+
 export const dirtyOuts: Drill = {
   id: 'dirty-outs',
   module: 'M2',
   title: 'Dirty outs',
   description: 'A coordinated board and a villain hand face up. Start from the raw out count for your draw and discount the cards that complete it but still lose.',
   generate(rng, difficulty): DrillInstance {
-    for (let attempt = 0; attempt < 5000; attempt++) {
+    for (let attempt = 0; attempt < DIRTY_OUTS_MAX_ATTEMPTS; attempt++) {
       const cards = rng.sample(fullDeck(), 7);
       const hero = cards.slice(0, 2);
       const villain = cards.slice(2, 4);

@@ -16,6 +16,7 @@ import { handRanking, bestHand } from './handReading';
 
 export * from './types';
 export * from './answer';
+export * from './fresh';
 
 /** All drills, numbered as in the specification's catalogue. */
 export const DRILLS: readonly Drill[] = [

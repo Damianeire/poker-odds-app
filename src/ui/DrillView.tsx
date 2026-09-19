@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { DRILLS, TEACHING_ORDER, drillNumber, type Difficulty, type DrillInstance } from '../drills';
+import { DRILLS, TEACHING_ORDER, drillNumber, generateFresh, questionKey, type Difficulty, type DrillInstance } from '../drills';
 import { createRng } from '../engine/rng';
 import {
   recordAttempt,
@@ -28,11 +28,18 @@ let seedCounter = Date.now() % 1000000;
 
 // The Drill tab unmounts when you visit another tab. Keep the selection and the
 // session tally here so coming back resumes the same drill.
-const remembered: { drillId: string | null; difficulty: Difficulty; streak: number; session: { attempts: number; correct: number } } = {
+const remembered: {
+  drillId: string | null;
+  difficulty: Difficulty;
+  streak: number;
+  session: { attempts: number; correct: number };
+  lastKey: string | null;
+} = {
   drillId: null,
   difficulty: 1,
   streak: 0,
   session: { attempts: 0, correct: 0 },
+  lastKey: null,
 };
 
 const LEVEL_NOTES: Record<Level, string> = {
@@ -84,8 +91,9 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
   const suggestion = progression === 'per-drill' ? suggestedLevel(progress, drill.id, difficulty) : null;
 
   const next = () => {
-    seedCounter += 1;
-    setInstance(applyTimerSetting(drill.generate(createRng(seedCounter), difficulty), drillTimer));
+    const fresh = generateFresh(drill, difficulty, () => createRng(++seedCounter), remembered.lastKey);
+    remembered.lastKey = questionKey(fresh);
+    setInstance(applyTimerSetting(fresh, drillTimer));
   };
 
   useEffect(() => {

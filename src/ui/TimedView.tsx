@@ -2,7 +2,7 @@
 // accuracy and median response time, with a session history.
 
 import { useRef, useState } from 'preact/hooks';
-import { TEACHING_ORDER, type Drill, type DrillInstance } from '../drills';
+import { TEACHING_ORDER, generateFresh, questionKey, type Drill, type DrillInstance } from '../drills';
 import { createRng } from '../engine/rng';
 import { timedSequence, TIMED_QUESTIONS } from '../srs/timed';
 import { unlockedModules, addTimedSession, median } from '../srs/store';
@@ -21,18 +21,25 @@ export function TimedView() {
   const [instance, setInstance] = useState<DrillInstance | null>(null);
   const [done, setDone] = useState(false);
   const results = useRef<QuestionResult[]>([]);
+  const lastKey = useRef<string | null>(null);
+
+  const draw = (drill: Drill): DrillInstance => {
+    const fresh = generateFresh(drill, 2, () => createRng(++seedCounter), lastKey.current);
+    lastKey.current = questionKey(fresh);
+    return fresh;
+  };
 
   const running = sequence.length > 0 && !done;
 
   const start = () => {
     results.current = [];
+    lastKey.current = null;
     seedCounter += 1;
     const seq = timedSequence(createRng(seedCounter), available);
-    seedCounter += 1;
     setSequence(seq);
     setIndex(0);
     setDone(false);
-    setInstance(seq[0]!.generate(createRng(seedCounter), 2));
+    setInstance(draw(seq[0]!));
   };
 
   const onResult = (r: QuestionResult) => {
@@ -48,9 +55,8 @@ export function TimedView() {
       setDone(true);
       return;
     }
-    seedCounter += 1;
     setIndex(nextIndex);
-    setInstance(sequence[nextIndex]!.generate(createRng(seedCounter), 2));
+    setInstance(draw(sequence[nextIndex]!));
   };
 
   const history = progress.timed.slice().reverse().slice(0, 10);

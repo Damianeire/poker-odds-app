@@ -380,3 +380,11 @@ describe('draw spots name a draw the hand actually has', () => {
     }
   });
 });
+
+describe('generators that once threw', () => {
+  it('dirty outs builds a level 1 spot for a seed that exhausted the old 5,000-attempt cap', () => {
+    const drill = DRILLS.find((d) => d.id === 'dirty-outs')!;
+    const inst = drill.generate(createRng(5055), 1);
+    wellFormed(inst);
+  });
+});

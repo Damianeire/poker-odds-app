@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fullDeck, parseCards } from '../src/engine/cards';
-import { Category, categoryOf, evaluate, describeScore, CATEGORY_COUNT } from '../src/engine/evaluator';
+import { Category, categoryOf, evaluate, describeScore, describeTiebreak, CATEGORY_COUNT } from '../src/engine/evaluator';
 import { choose, forEachCombination } from '../src/engine/math';
 
 // Published frequency table: a test fixture, never app data.
@@ -88,5 +88,31 @@ describe('evaluator', () => {
   it('describes hands in words', () => {
     expect(describeScore(evaluate(parseCards('Ts Js Qs Ks As')))).toBe('royal flush');
     expect(describeScore(evaluate(parseCards('6s 6d 6c 2h 9s')))).toBe('three of a kind, sixes');
+  });
+
+  it('explains what breaks a tie within a category', () => {
+    const board = 'As Ad 2s 2h 3d';
+    const q = evaluate(parseCards(`Qd 5s ${board}`));
+    const eight = evaluate(parseCards(`6h 8s ${board}`));
+    expect(describeTiebreak(q, eight)).toBe('The kicker decides: queen beats eight.');
+    // Different categories: the category decides, nothing to add.
+    expect(describeTiebreak(evaluate(parseCards('Ah Ad Kc 9d 2h 3s 7c')), eight)).toBeNull();
+    // Same made hand and kicker: equal scores have no tiebreak.
+    expect(describeTiebreak(q, q)).toBeNull();
+    // Pair rank, then a lower kicker.
+    const kk = evaluate(parseCards('Kh Kd 9c 5d 2h 3s 7c'));
+    const qq = evaluate(parseCards('Qh Qd Ac 5d 2h 3s 7c'));
+    expect(describeTiebreak(kk, qq)).toBe('The higher rank decides: king beats queen.');
+    const k9 = evaluate(parseCards('Kh Kd 9c 5d 2h 3s 7c'));
+    const k8 = evaluate(parseCards('Ks Kc 8c 5d 2h 3s 7c'));
+    expect(describeTiebreak(k9, k8)).toBe('The kicker decides: nine beats eight.');
+    // Second kicker.
+    const a = evaluate(parseCards('Ks Kc Ah 9d 4h 3s 2c'));
+    const b = evaluate(parseCards('Kh Kd Ac 8d 4d 3c 2d'));
+    expect(describeTiebreak(a, b)).toBe('The first kicker matches, so the second kicker decides: nine beats eight.');
+    // Flush / high card: the deciding card.
+    const f1 = evaluate(parseCards('Ah 9h 7h 4h 2h'));
+    const f2 = evaluate(parseCards('Ad Jd 7d 4d 2d'));
+    expect(describeTiebreak(f2, f1)).toBe('The top card matches, so the second card decides: jack beats nine.');
   });
 });

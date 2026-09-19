@@ -1,7 +1,7 @@
 // Drill 23: hand ranking. Drill 24: best hand.
 
 import { fullDeck, formatCards, rankOf } from '../engine/cards';
-import { evaluate, describeScore, categoryOf, CATEGORY_NAMES, Category } from '../engine/evaluator';
+import { evaluate, describeScore, describeTiebreak, categoryOf, CATEGORY_NAMES, Category } from '../engine/evaluator';
 import { type Rng } from '../engine/rng';
 import { type Drill, type DrillInstance } from './types';
 
@@ -82,6 +82,9 @@ export const bestHand: Drill = {
       if (difficulty >= 2 && !sameCat && !split && rng.next() < 0.6) continue;
       if (split && rng.next() < 0.5) continue;
       const choices = hands.map((_, i) => `Hand ${i + 1}`).concat(['Split pot']);
+      // Same category as the runner-up: say what broke the tie.
+      const runnerUp = split ? undefined : Math.max(...scores.filter((s) => s !== best));
+      const tiebreak = runnerUp === undefined ? null : describeTiebreak(best, runnerUp);
       return {
         prompt: {
           text: `${players} hands at showdown. Which wins?`,
@@ -95,9 +98,9 @@ export const bestHand: Drill = {
         tolerance: 0,
         explanation: {
           steps: hands.map((h, i) => ({ text: `Hand ${i + 1} (${formatCards(h)}): ${describeScore(scores[i]!)}.` })).concat([
-            { text: split ? 'The best five cards are identical, so the pot is split. Suits never break ties.' : `Hand ${winners[0]! + 1} is best.` },
+            { text: split ? 'The best five cards are identical, so the pot is split. Suits never break ties.' : `Hand ${winners[0]! + 1} is best.${tiebreak ? ` ${tiebreak}` : ''}` },
           ]),
-          summary: split ? 'Split pot.' : `Hand ${winners[0]! + 1} wins with ${describeScore(best)}.`,
+          summary: split ? 'Split pot.' : `Hand ${winners[0]! + 1} wins with ${describeScore(best)}.${tiebreak ? ` ${tiebreak}` : ''}`,
         },
       };
     }

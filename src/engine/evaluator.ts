@@ -212,6 +212,40 @@ export function describeScore(score: number): string {
   }
 }
 
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth'];
+
+/** How many leading ranks in a score define the made hand; the rest are kickers. */
+function madeRanks(cat: Category): number {
+  switch (cat) {
+    case Category.FullHouse:
+    case Category.TwoPair:
+      return 2;
+    case Category.Flush:
+    case Category.HighCard:
+      return 0;
+    default:
+      return 1;
+  }
+}
+
+/**
+ * Why `winner` beats `loser` when both are the same category, e.g. "the kicker decides:
+ * queen beats eight". Null if the categories differ or the scores are equal.
+ */
+export function describeTiebreak(winner: number, loser: number): string | null {
+  const cat = categoryOf(winner);
+  if (cat !== categoryOf(loser) || winner === loser) return null;
+  const w = scoreRanks(winner);
+  const l = scoreRanks(loser);
+  let i = 0;
+  while (i < w.length && w[i] === l[i]) i++;
+  const made = madeRanks(cat);
+  const vs = `${rankName(w[i]!)} beats ${rankName(l[i]!)}`;
+  if (i < made) return `The higher rank decides: ${vs}.`;
+  if (made === 0) return i === 0 ? `The highest card decides: ${vs}.` : `The ${i > 1 ? `top ${i} cards match` : 'top card matches'}, so the ${ORDINALS[i]} card decides: ${vs}.`;
+  return i === made ? `The kicker decides: ${vs}.` : `The ${i - made > 1 ? `top ${i - made} kickers match` : 'first kicker matches'}, so the ${ORDINALS[i - made]} kicker decides: ${vs}.`;
+}
+
 /** Convenience: evaluate hole cards plus board. */
 export function evaluateHand(hole: readonly Card[], board: readonly Card[]): number {
   return evaluate([...hole, ...board]);

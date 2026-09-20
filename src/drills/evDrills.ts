@@ -109,6 +109,7 @@ export const impliedOdds: Drill = {
 
 export const setMining: Drill = {
   id: 'set-mining',
+  answerMayRepeat: true,
   module: 'M7',
   title: 'Set mining',
   description: 'A pocket pair faces a preflop raise. Given effective stacks and how often villain pays off, decide whether to call to hit a set.',

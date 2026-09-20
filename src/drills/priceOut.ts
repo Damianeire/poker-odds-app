@@ -3,8 +3,24 @@
 import { formatCards } from '../engine/cards';
 import { outProbabilities } from '../engine/outs';
 import { potOdds, betToPriceOut } from '../engine/potodds';
-import { dealDrawSpot, pickPot, BET_FRACTIONS } from './deal';
+import { dealDrawSpot, pickPot } from './deal';
 import { type Drill, type DrillInstance, num } from './types';
+
+/**
+ * Bet sizes offered at levels 1 and 2. They start well under a third of the pot: a clean draw has at most
+ * 9 outs, so a list that began at one third had the same right answer for every draw. With small sizes a
+ * gutshot needs a fifth of the pot, a flush draw a third, and the mixed spots at level 2 need more.
+ */
+export const PRICE_OUT_SIZES: readonly { label: string; fraction: number }[] = [
+  { label: 'one tenth of the pot', fraction: 1 / 10 },
+  { label: 'one fifth of the pot', fraction: 1 / 5 },
+  { label: 'a quarter of the pot', fraction: 1 / 4 },
+  { label: 'one third of the pot', fraction: 1 / 3 },
+  { label: 'half the pot', fraction: 1 / 2 },
+  { label: 'two thirds of the pot', fraction: 2 / 3 },
+  { label: 'the size of the pot', fraction: 1 },
+  { label: '1.5 times the pot', fraction: 1.5 },
+];
 
 export const priceOut: Drill = {
   id: 'price-out',
@@ -16,7 +32,7 @@ export const priceOut: Drill = {
   generate(rng, difficulty): DrillInstance {
     for (let attempt = 0; attempt < 500; attempt++) {
       const boardLength: 3 | 4 = difficulty === 1 ? 4 : rng.pick([3, 4]);
-      const spot = dealDrawSpot(rng, { clean: difficulty < 3, boardLength });
+      const spot = dealDrawSpot(rng, { clean: difficulty === 1, boardLength });
       const outs = spot.outs.count;
       const probs = outProbabilities(outs, boardLength);
       const e = probs.nextCard;
@@ -37,7 +53,7 @@ export const priceOut: Drill = {
         },
       ];
       if (difficulty < 3) {
-        const idx = BET_FRACTIONS.findIndex((f) => potOdds(pot, pot * f.fraction).breakEven > e);
+        const idx = PRICE_OUT_SIZES.findIndex((f) => potOdds(pot, pot * f.fraction).breakEven > e);
         if (idx < 0) continue;
         return {
           prompt: {
@@ -45,7 +61,7 @@ export const priceOut: Drill = {
             villainCards: spot.hero,
             board: spot.board,
             facts,
-            choices: BET_FRACTIONS.map((f) => f.label),
+            choices: PRICE_OUT_SIZES.map((f) => f.label),
           },
           answer: idx,
           unit: 'count',
@@ -54,10 +70,10 @@ export const priceOut: Drill = {
             steps: [
               ...steps,
               {
-                text: `Break-even equity for each sizing: ${BET_FRACTIONS.map((f) => `${f.label} ${num(potOdds(pot, pot * f.fraction).breakEven * 100, 1)}%`).join(', ')}.`,
+                text: `Break-even equity for each sizing: ${PRICE_OUT_SIZES.map((f) => `${f.label} ${num(potOdds(pot, pot * f.fraction).breakEven * 100, 1)}%`).join(', ')}.`,
               },
             ],
-            summary: `${BET_FRACTIONS[idx]!.label} is the smallest sizing whose break-even exceeds ${num(e * 100, 1)}%.`,
+            summary: `${PRICE_OUT_SIZES[idx]!.label} is the smallest sizing whose break-even exceeds ${num(e * 100, 1)}%.`,
           },
         };
       }

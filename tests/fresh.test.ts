@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DRILLS, FRESH_TRIES, conceptKey, generateFresh, questionKey, type Drill, type DrillInstance } from '../src/drills';
+import { DRILLS, FRESH_TRIES, answerKey, conceptKey, generateFresh, questionKey, seen, type Drill, type DrillInstance, type Seen } from '../src/drills';
 import { createRng } from '../src/engine/rng';
 
 function stub(text: string, extra: Partial<DrillInstance['prompt']> = {}, answer = 1): DrillInstance {
@@ -50,11 +50,12 @@ describe('repeatIgnoresCards', () => {
     let calls = 0;
     const drill = {
       repeatIgnoresCards: true,
+      answerMayRepeat: true,
       generate: () => stub('Same numbers', { heroCards: [calls], facts: [{ label: 'Pot', value: calls++ < 2 ? '100' : '200' }] }),
     } as unknown as Drill;
     const first = generateFresh(drill, 1, () => createRng(1), null);
     calls = 0;
-    const next = generateFresh(drill, 1, () => createRng(1), questionKey(first));
+    const next = generateFresh(drill, 1, () => createRng(1), seen(first));
     expect(next.prompt.facts![0]!.value).toBe('200');
   });
 
@@ -67,8 +68,8 @@ describe('repeatIgnoresCards', () => {
 describe('generateFresh', () => {
   it('redraws until the question differs from the one to avoid', () => {
     let calls = 0;
-    const drill = { generate: () => stub(calls++ < 3 ? 'same' : 'different') } as unknown as Drill;
-    const avoid = questionKey(stub('same'));
+    const drill = { answerMayRepeat: true, generate: () => stub(calls++ < 3 ? 'same' : 'different') } as unknown as Drill;
+    const avoid = seen(stub('same'));
     const inst = generateFresh(drill, 1, () => createRng(1), avoid);
     expect(inst.prompt.text).toBe('different');
     expect(calls).toBe(4);
@@ -83,8 +84,8 @@ describe('generateFresh', () => {
 
   it('gives up after a bounded number of tries when the drill has one question', () => {
     let calls = 0;
-    const drill = { generate: () => (calls++, stub('same')) } as unknown as Drill;
-    const inst = generateFresh(drill, 1, () => createRng(1), questionKey(stub('same')));
+    const drill = { answerMayRepeat: true, generate: () => (calls++, stub('same')) } as unknown as Drill;
+    const inst = generateFresh(drill, 1, () => createRng(1), seen(stub('same')));
     expect(inst.prompt.text).toBe('same');
     expect(calls).toBe(FRESH_TRIES);
   });
@@ -108,20 +109,101 @@ describe('generateFresh', () => {
     expect(calls).toBe(FRESH_TRIES);
   });
 
+  it('redraws when only the answer repeats, unless the drill allows it', () => {
+    const make = (allow: boolean) => {
+      let calls = 0;
+      const drill = { answerMayRepeat: allow, generate: () => stub(`Question ${calls}`, {}, calls++ < 2 ? 5 : 6) } as unknown as Drill;
+      return { drill, calls: () => calls };
+    };
+    const strict = make(false);
+    const inst = generateFresh(strict.drill, 1, () => createRng(1), seen(stub('Earlier', {}, 5)));
+    expect(inst.answer).toBe(6);
+    expect(strict.calls()).toBe(3);
+    const loose = make(true);
+    expect(generateFresh(loose.drill, 1, () => createRng(1), seen(stub('Earlier', {}, 5))).answer).toBe(5);
+    expect(loose.calls()).toBe(1);
+  });
+
+  it('matches answers the way the learner sees them', () => {
+    expect(answerKey(stub('a', {}, 25.04))).toBe(answerKey(stub('b', {}, 24.96)));
+    expect(answerKey(stub('a', {}, 25.0))).not.toBe(answerKey(stub('a', {}, 25.3)));
+    // Choice answers go by the option's text, so a reshuffled list still matches.
+    expect(answerKey(stub('a', { choices: ['x', 'y', 'z'] }, 1))).toBe(answerKey(stub('a', { choices: ['z', 'y', 'x'] }, 1)));
+    expect(answerKey(stub('a', { choices: ['x', 'y', 'z'] }, 0))).not.toBe(answerKey(stub('a', { choices: ['x', 'y', 'z'] }, 2)));
+  });
+
+  it('is only switched off for the drills whose answer is effectively yes or no', () => {
+    const ids = DRILLS.filter((d) => d.answerMayRepeat).map((d) => d.id).sort();
+    expect(ids).toEqual(['call-or-fold', 'set-mining', 'villain-dependent', 'which-multiplier', 'which-tool']);
+  });
+
   // Preflop enumeration costs about half a second per instance, so it gets a shorter run.
   for (const drill of DRILLS) {
     const runs = drill.id === 'preflop-equity' ? 3 : 60;
-    it(`never repeats a question back to back: ${drill.id}`, () => {
+    it(`never repeats a question, or an answer, back to back: ${drill.id}`, () => {
       for (const level of [1, 2, 3] as const) {
         let seed = level * 1000;
-        let last: string | null = null;
+        let last: Seen | null = null;
         for (let i = 0; i < runs; i++) {
           const inst = generateFresh(drill, level, () => createRng(++seed), last);
-          const key = questionKey(inst);
-          expect(key).not.toBe(last);
-          last = key;
+          const now = seen(inst);
+          expect(now.question).not.toBe(last?.question);
+          if (!drill.answerMayRepeat) expect(now.answer).not.toBe(last?.answer);
+          last = now;
         }
       }
     });
   }
+});
+
+describe('break-even equity', () => {
+  const drill = DRILLS.find((d) => d.id === 'break-even-equity')!;
+
+  it('never gives the same answer twice in a row, even from a different pot and bet', () => {
+    for (const level of [1, 2, 3] as const) {
+      let seed = level * 7000;
+      let last: Seen | null = null;
+      for (let i = 0; i < 300; i++) {
+        const inst = generateFresh(drill, level, () => createRng(++seed), last);
+        if (last) expect(answerKey(inst)).not.toBe(last.answer);
+        last = seen(inst);
+      }
+    }
+  });
+
+  it('would otherwise repeat: 50 into 100 and 100 into 200 are different questions with one answer', () => {
+    const at = (pot: number, bet: number) => {
+      for (let seed = 1; seed < 5000; seed++) {
+        const inst = drill.generate(createRng(seed), 1);
+        const f = inst.prompt.facts!;
+        if (f[0]!.value === String(pot) && f[1]!.value === String(bet)) return inst;
+      }
+      return null;
+    };
+    const a = at(100, 50);
+    const b = at(200, 100);
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    expect(questionKey(a!)).not.toBe(questionKey(b!));
+    expect(answerKey(a!)).toBe(answerKey(b!));
+  });
+});
+
+describe('price-out', () => {
+  const drill = DRILLS.find((d) => d.id === 'price-out')!;
+
+  // At levels 1 and 2 every draw once had the same right answer, so there was nothing to work out.
+  it('has several different right answers at levels 1 and 2', () => {
+    for (const level of [1, 2] as const) {
+      const answers = new Map<string, number>();
+      for (let seed = 1; seed <= 300; seed++) {
+        const inst = drill.generate(createRng(seed), level);
+        const key = answerKey(inst);
+        answers.set(key, (answers.get(key) ?? 0) + 1);
+      }
+      expect(answers.size).toBeGreaterThanOrEqual(3);
+      // No single answer dominates.
+      expect(Math.max(...answers.values())).toBeLessThan(300 * 0.6);
+    }
+  });
 });

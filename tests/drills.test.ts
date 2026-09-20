@@ -7,6 +7,7 @@ import { formatCards } from '../src/engine/cards';
 import { evaluate, categoryOf, Category } from '../src/engine/evaluator';
 import { parseCards } from '../src/engine/cards';
 import { DRAW_TARGETS, dealDrawSpot, isGenuineDraw } from '../src/drills/deal';
+import { PRICE_OUT_SIZES } from '../src/drills/priceOut';
 
 const DIFFICULTIES: Difficulty[] = [1, 2, 3];
 
@@ -231,8 +232,8 @@ describe('Phase 2 drills agree with the engine', () => {
       const outs = Number(/(\d+) outs/.exec(inst.explanation.steps[0]!.result!)![1]);
       expect(outs).toBeGreaterThan(0);
       const idx = inst.answer;
-      expect(inst.prompt.choices!.length).toBe(7);
-      const fractions = [1 / 3, 1 / 2, 2 / 3, 3 / 4, 1, 1.5, 2];
+      expect(inst.prompt.choices!.length).toBe(PRICE_OUT_SIZES.length);
+      const fractions = PRICE_OUT_SIZES.map((f) => f.fraction);
       const unseen = inst.prompt.board!.length === 3 ? 47 : 46;
       const e = outs / unseen;
       expect(potOdds(pot, pot * fractions[idx]!).breakEven).toBeGreaterThan(e);

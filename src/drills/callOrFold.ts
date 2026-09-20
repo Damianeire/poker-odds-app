@@ -36,6 +36,7 @@ import { type Drill, type DrillInstance, type Fact, type PromptSpec, num } from 
 export const callOrFold: Drill = {
   id: 'call-or-fold',
   repeatIgnoresCards: true,
+  answerMayRepeat: true,
   module: 'M5',
   title: 'Call or fold',
   description:

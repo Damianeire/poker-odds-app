@@ -2,7 +2,7 @@
 // accuracy and median response time, with a session history.
 
 import { useRef, useState } from 'preact/hooks';
-import { TEACHING_ORDER, generateFresh, unlockedModules, questionKey, type Drill, type DrillInstance } from '../drills';
+import { TEACHING_ORDER, generateFresh, unlockedModules, seen, type Seen, type Drill, type DrillInstance } from '../drills';
 import { createRng } from '../engine/rng';
 import { timedSequence, TIMED_QUESTIONS } from '../srs/timed';
 import { addTimedSession, median } from '../srs/store';
@@ -21,11 +21,11 @@ export function TimedView() {
   const [instance, setInstance] = useState<DrillInstance | null>(null);
   const [done, setDone] = useState(false);
   const results = useRef<QuestionResult[]>([]);
-  const lastKey = useRef<string | null>(null);
+  const lastSeen = useRef<Seen | null>(null);
 
   const draw = (drill: Drill): DrillInstance => {
-    const fresh = generateFresh(drill, 2, () => createRng(++seedCounter), lastKey.current);
-    lastKey.current = questionKey(fresh);
+    const fresh = generateFresh(drill, 2, () => createRng(++seedCounter), lastSeen.current);
+    lastSeen.current = seen(fresh);
     return fresh;
   };
 
@@ -33,7 +33,7 @@ export function TimedView() {
 
   const start = () => {
     results.current = [];
-    lastKey.current = null;
+    lastSeen.current = null;
     seedCounter += 1;
     const seq = timedSequence(createRng(seedCounter), available);
     setSequence(seq);

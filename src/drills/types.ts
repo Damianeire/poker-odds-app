@@ -77,6 +77,11 @@ export interface Drill {
    * draw of the same kind) count as the same question for the "no repeat" check.
    */
   repeatIgnoresCards?: boolean;
+  /**
+   * For drills whose answer is effectively yes or no. Forbidding a repeat would make the answers
+   * alternate, which is as easy to spot as a run of the same one, so only the question is checked.
+   */
+  answerMayRepeat?: boolean;
   generate(rng: Rng, difficulty: Difficulty): DrillInstance;
 }
 

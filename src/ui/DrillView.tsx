@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { DRILLS, TEACHING_ORDER, drillNumber, generateFresh, unlockedModules, gatingProgress, questionKey, type Difficulty, type DrillInstance } from '../drills';
+import { DRILLS, TEACHING_ORDER, drillNumber, generateFresh, unlockedModules, gatingProgress, seen, type Seen, type Difficulty, type DrillInstance } from '../drills';
 import { createRng } from '../engine/rng';
 import {
   recordAttempt,
@@ -32,13 +32,13 @@ const remembered: {
   difficulty: Difficulty;
   streak: number;
   session: { attempts: number; correct: number };
-  lastKey: string | null;
+  lastSeen: Seen | null;
 } = {
   drillId: null,
   difficulty: 1,
   streak: 0,
   session: { attempts: 0, correct: 0 },
-  lastKey: null,
+  lastSeen: null,
 };
 
 const LEVEL_NOTES: Record<Level, string> = {
@@ -97,8 +97,8 @@ export function DrillView({ jumpTo }: { jumpTo?: string | null } = {}) {
   const passMark = Math.ceil(LEVEL_PASS.attempts * LEVEL_PASS.accuracy);
 
   const next = () => {
-    const fresh = generateFresh(drill, difficulty, () => createRng(++seedCounter), remembered.lastKey);
-    remembered.lastKey = questionKey(fresh);
+    const fresh = generateFresh(drill, difficulty, () => createRng(++seedCounter), remembered.lastSeen);
+    remembered.lastSeen = seen(fresh);
     setInstance(applyTimerSetting(fresh, drillTimer));
   };
 

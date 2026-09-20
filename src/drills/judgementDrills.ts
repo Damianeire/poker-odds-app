@@ -77,6 +77,7 @@ type Param = 'payoffPropensity' | 'aggression' | 'foldFrequency' | 'rangeWidth';
 export const villainDependent: Drill = {
   id: 'villain-dependent',
   repeatIgnoresCards: true,
+  answerMayRepeat: true,
   module: 'M7',
   title: 'Villain-dependent call',
   description: 'The same hand, board and bet against two villain profiles. Decide for each; the explanation names the parameter that flipped the answer.',
@@ -141,6 +142,7 @@ export const villainDependent: Drill = {
 export const whichMultiplier: Drill = {
   id: 'which-multiplier',
   repeatIgnoresCards: true,
+  answerMayRepeat: true,
   module: 'M4',
   title: 'Which multiplier',
   description: 'A flop spot. Villain is either all-in or has chips behind. Choose the Rule of 2 or the Rule of 4 before you estimate. The choice is what is graded.',
@@ -208,6 +210,7 @@ const TOOL_SPOTS: ToolSpot[] = [
 
 export const whichTool: Drill = {
   id: 'which-tool',
+  answerMayRepeat: true,
   module: 'M5',
   title: 'Which tool',
   description: 'A described spot. Say whether the decision is a pot odds calculation or an implied odds calculation. Choosing the tool is a separate skill from using it.',

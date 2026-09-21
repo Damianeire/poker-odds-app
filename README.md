@@ -38,4 +38,4 @@ Probability answers are accepted as a percentage (35 or 35%) or as odds against 
 
 ## Settings
 
-Four-colour deck is on by default and persisted in localStorage. Nothing else is persisted in Phase 1.
+Progress and settings are saved in localStorage after every answer. To move them to another browser, make a progress code on the Progress tab and paste it there (or open the share link). JSON export and import remain as a file backup. Four-colour deck is on by default.

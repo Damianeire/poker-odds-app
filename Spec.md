@@ -52,7 +52,7 @@ Recommended stack:
 - TypeScript, strict mode.
 - Vite for the dev server and build.
 - Preact (or plain TypeScript with a small render layer). Avoid heavyweight frameworks. No state management library.
-- No backend. All state in `localStorage`, with JSON export and import so progress survives a browser reset.
+- No backend. All state in `localStorage`, with JSON export and import so progress survives a browser reset. A progress code (section 7) carries the same state between browsers. A hosted account backend was considered and deferred.
 - Vitest for unit tests.
 - Deployable as a static site to GitHub Pages. Also has to work when opened from a local build with no network.
 
@@ -335,6 +335,8 @@ Leitner-style spaced repetition is sufficient and much easier to reason about th
 Track per drill type: attempts, accuracy, median time to answer, and a rolling signed error so the user can see systematic bias (for example, consistently overestimating high-out draws).
 
 Store everything in `localStorage` under one versioned key. Provide Export and Import as JSON. Include a schema version field from day one.
+
+Progress code. The Progress tab can turn the whole state into one copyable string (`PQ1.<compressed payload>.<crc32>`) and restore it in any browser, also via a `#code=` link. No accounts, no server. The code is a snapshot, not a sync: restoring replaces local state after a confirmation showing both sides. The checksum catches typos and truncation only. Decoding goes through the same validation as JSON import, so schema migrations stay in one place.
 
 The Progress view should show one thing prominently: which concepts are weakest, ranked. Not a badge wall.
 

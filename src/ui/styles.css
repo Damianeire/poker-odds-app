@@ -198,7 +198,15 @@ body.four-colour .card.suit-s { color: #111; }
 /* Progress */
 .progress-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; align-items: start; }
 .calibration-score { font-family: var(--mono); font-size: 28px; margin: 4px 0; }
-.progress-actions { display: flex; gap: 10px; margin-top: 8px; }
+.progress-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.code-box {
+  display: block; width: 100%; margin-top: 8px; padding: 8px;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
+  font: 12px/1.4 var(--mono); word-break: break-all; resize: vertical;
+}
+.panel h4 { margin: 18px 0 0; font-size: 14px; }
+.link-banner { margin: 12px 0; }
+.restore-prompt p { margin: 0; }
 
 .settings { display: grid; gap: 20px; max-width: 640px; }
 .options { display: flex; flex-direction: column; gap: 10px; }

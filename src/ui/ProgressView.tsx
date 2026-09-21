@@ -2,8 +2,10 @@
 
 import { useRef, useState } from 'preact/hooks';
 import { DRILLS, unlockedModules } from '../drills';
-import { weakestDrills, calibrationScore, exportJson, importJson, MODULE_IDS } from '../srs/store';
+import { weakestDrills, calibrationScore, exportJson, importJson, MODULE_IDS, type ProgressState } from '../srs/store';
+import { encodeProgress, decodeProgress, codeLink } from '../srs/code';
 import { useProgress, setProgress } from './progress';
+import { RestorePrompt } from './RestorePrompt';
 
 export function ProgressView() {
   const progress = useProgress();
@@ -18,6 +20,38 @@ export function ProgressView() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importOk, setImportOk] = useState(false);
+
+  const codeBox = useRef<HTMLTextAreaElement>(null);
+  const [code, setCode] = useState('');
+  const [codeNote, setCodeNote] = useState<string | null>(null);
+  const [pasted, setPasted] = useState('');
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [incoming, setIncoming] = useState<ProgressState | null>(null);
+
+  const makeCode = async () => {
+    setCodeNote(null);
+    setCode(await encodeProgress(progress));
+  };
+
+  const copy = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCodeNote(`${what} copied.`);
+    } catch {
+      codeBox.current?.select();
+      setCodeNote('Copying was blocked. The code is selected, so copy it by hand.');
+    }
+  };
+
+  const checkPasted = async () => {
+    setRestoreError(null);
+    setIncoming(null);
+    try {
+      setIncoming(await decodeProgress(pasted));
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const doExport = () => {
     const blob = new Blob([exportJson(progress)], { type: 'application/json' });
@@ -91,8 +125,60 @@ export function ProgressView() {
       </section>
 
       <section class="panel">
+        <h3>Progress code</h3>
+        <p class="muted">
+          Results save after every answer, in this browser only. To carry them to another browser or device, make a code and paste it there. The code is a snapshot, so make a new one after more practice. Anyone with your code can load your progress.
+        </p>
+        <div class="progress-actions">
+          <button type="button" onClick={makeCode}>
+            Make code
+          </button>
+          {code && (
+            <>
+              <button type="button" onClick={() => copy(code, 'Code')}>
+                Copy code
+              </button>
+              <button type="button" onClick={() => copy(codeLink(code, location.href), 'Link')}>
+                Copy link
+              </button>
+            </>
+          )}
+        </div>
+        {code && <textarea ref={codeBox} class="code-box" readOnly rows={4} value={code} onFocus={(e) => (e.target as HTMLTextAreaElement).select()} />}
+        {codeNote && <p class="hint">{codeNote}</p>}
+
+        <h4>Restore from a code</h4>
+        <textarea
+          class="code-box"
+          rows={4}
+          placeholder="Paste a progress code"
+          value={pasted}
+          onInput={(e) => {
+            setPasted((e.target as HTMLTextAreaElement).value);
+            setIncoming(null);
+            setRestoreError(null);
+          }}
+        />
+        <div class="progress-actions">
+          <button type="button" disabled={pasted.trim() === ''} onClick={checkPasted}>
+            Check code
+          </button>
+        </div>
+        {restoreError && <p class="error">{restoreError}</p>}
+        {incoming && (
+          <RestorePrompt
+            incoming={incoming}
+            onDone={() => {
+              setIncoming(null);
+              setPasted('');
+            }}
+          />
+        )}
+      </section>
+
+      <section class="panel">
         <h3>Data</h3>
-        <p class="muted">Results save after every answer, in this browser only. A different browser or address starts empty, so export a copy to move it or keep a backup. An unfinished question or Timed run is not saved.</p>
+        <p class="muted">A file copy of the same data, for backups. An unfinished question or Timed run is not saved.</p>
         <div class="progress-actions">
           <button type="button" onClick={doExport}>
             Export progress

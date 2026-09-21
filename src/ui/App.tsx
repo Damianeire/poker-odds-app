@@ -8,6 +8,9 @@ import { TablesView } from './TablesView';
 import { ProgressView } from './ProgressView';
 import { SettingsView } from './SettingsView';
 import { useProgress } from './progress';
+import { RestorePrompt } from './RestorePrompt';
+import { codeFromHash, decodeProgress } from '../srs/code';
+import { type ProgressState } from '../srs/store';
 
 type Tab = 'learn' | 'drill' | 'timed' | 'bankroll' | 'sandbox' | 'tables' | 'progress' | 'settings';
 
@@ -19,6 +22,16 @@ export function App() {
   useEffect(() => {
     document.body.classList.toggle('four-colour', progress.settings.fourColour);
   }, [progress.settings.fourColour]);
+
+  // A shared link carries a progress code in the hash. Read it once, clear it, and ask before restoring.
+  const [linked, setLinked] = useState<ProgressState | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  useEffect(() => {
+    const code = codeFromHash(location.hash);
+    if (code === null) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    decodeProgress(code).then(setLinked, (e) => setLinkError(e instanceof Error ? e.message : String(e)));
+  }, []);
 
   const goToDrill = (drillId: string) => {
     setJumpDrill(drillId);
@@ -51,6 +64,21 @@ export function App() {
           ))}
         </nav>
       </header>
+      {(linked || linkError) && (
+        <div class="link-banner panel">
+          {linked && <RestorePrompt incoming={linked} onDone={() => setLinked(null)} />}
+          {linkError && (
+            <>
+              <p class="error">The link's progress code did not work: {linkError}</p>
+              <div class="progress-actions">
+                <button type="button" onClick={() => setLinkError(null)}>
+                  Dismiss
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <main>
         {tab === 'learn' && <LearnView onDrill={goToDrill} />}
         {tab === 'drill' && <DrillView jumpTo={jumpDrill} />}

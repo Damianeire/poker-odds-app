@@ -318,6 +318,19 @@ export function updateSettings(state: ProgressState, patch: Partial<Settings>): 
   return { ...state, settings: { ...state.settings, ...patch } };
 }
 
+export interface ProgressSummary {
+  attempts: number;
+  drillsAttempted: number;
+  /** ISO timestamp of the most recent answer, or null when there are none. */
+  lastSeen: string | null;
+}
+
+export function progressSummary(state: ProgressState): ProgressSummary {
+  const records = Object.values(state.drills).filter((r) => r.attempts > 0);
+  const lastSeen = records.reduce<string | null>((best, r) => (best === null || r.lastSeen > best ? r.lastSeen : best), null);
+  return { attempts: records.reduce((a, r) => a + r.attempts, 0), drillsAttempted: records.length, lastSeen };
+}
+
 export function exportJson(state: ProgressState): string {
   return JSON.stringify(state, null, 2);
 }

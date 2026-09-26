@@ -1,8 +1,8 @@
 // Drill 1: count the outs.
 
 import { formatCards, formatCard } from '../engine/cards';
-import { describeScore, evaluate } from '../engine/evaluator';
-import { dealDrawSpot, dealVersusSpot } from './deal';
+import { Category, describeScore, evaluate } from '../engine/evaluator';
+import { boardMadeCards, dealDrawSpot, dealVersusSpot } from './deal';
 import { type Drill, type DrillInstance, type ExplanationStep } from './types';
 
 export const countOuts: Drill = {
@@ -28,6 +28,19 @@ export const countOuts: Drill = {
           result: `${spot.outs.count} outs`,
         },
       ];
+      const boardMade = boardMadeCards(spot.hero, spot.board, spot.target.category, spot.outs);
+      // Board-made quads or full houses are a fair reading of "or better", so they are accepted too.
+      // A card that only pairs the board is not: that is the standard out-counting rule.
+      const lenient = boardMade.length > 0 && spot.target.category >= Category.FullHouse;
+      if (boardMade.length > 0) {
+        steps.push({
+          text: `Not counted: ${formatCards(boardMade)}. ${
+            boardMade.length === 1 ? 'It makes' : 'They make'
+          } the hand on the board by itself, so every player shares it and your hole cards add only a kicker.${
+            lenient ? ` Counting ${boardMade.length === 1 ? 'it' : 'them'} (${spot.outs.count + boardMade.length}) is also accepted.` : ''
+          }`,
+        });
+      }
       return {
         prompt: {
           text: `How many outs do you have to ${spot.target.label}?`,
@@ -38,6 +51,7 @@ export const countOuts: Drill = {
         answer: spot.outs.count,
         unit: 'count',
         tolerance: 0,
+        ...(lenient ? { alsoAccept: [spot.outs.count + boardMade.length] } : {}),
         // The same target with the same count is the same question, even in another suit.
         repeatKey: `${spot.target.label}|${spot.outs.count}`,
         explanation: {

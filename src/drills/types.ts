@@ -56,6 +56,11 @@ export interface DrillInstance {
   /** Absolute, in the answer's unit. */
   tolerance: number;
   /**
+   * Other values graded as correct, for spots where a reasonable reading of the question
+   * gives a different count (e.g. counting a card that makes quads on the board).
+   */
+  alsoAccept?: number[];
+  /**
    * When set, two questions with the same repeatKey count as the same question for the "no repeat" check,
    * whatever cards are shown. For drills where only the concept matters, e.g. "flush draw, 9 outs".
    */

@@ -61,7 +61,9 @@ export interface GradeResult {
 export function grade(instance: DrillInstance, userValue: number): GradeResult {
   const error = userValue - instance.answer;
   const result: GradeResult = {
-    correct: Math.abs(error) <= instance.tolerance + 1e-9,
+    correct:
+      Math.abs(error) <= instance.tolerance + 1e-9 ||
+      (instance.alsoAccept ?? []).some((a) => Math.abs(userValue - a) <= instance.tolerance + 1e-9),
     userValue,
     answer: instance.answer,
     error,

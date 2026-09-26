@@ -42,6 +42,9 @@ export const dirtyOuts: Drill = {
       if (difficulty === 1 && extra.length > 0) continue;
       if (difficulty === 1 && tainted.length > 3) continue;
       const winning = clean.count;
+      // A tainted card either loses outright or only splits the pot. Neither is a win, but they read differently.
+      const splits = tainted.filter((c) => evaluate([...hero, ...board, c]) === evaluate([...villain, ...board, c]));
+      const loses = tainted.filter((c) => !splits.includes(c));
       return {
         prompt: {
           text: `You are drawing to ${target.label}, ${raw.count} raw outs. Villain’s hand is face up. How many cards actually win for you on the next card?`,
@@ -59,7 +62,10 @@ export const dirtyOuts: Drill = {
           steps: [
             { text: `You: ${describeScore(evaluate([...hero, ...board]))}. Villain: ${describeScore(evaluate([...villain, ...board]))}.` },
             { text: `Raw outs to ${target.label}: ${formatCards(raw.outs)}.`, result: String(raw.count) },
-            { text: `Tainted: they complete your hand but villain still wins: ${formatCards(tainted)}.`, result: `-${tainted.length}` },
+            ...(loses.length > 0 ? [{ text: `Tainted: they complete your hand but villain still wins: ${formatCards(loses)}.`, result: `-${loses.length}` }] : []),
+            ...(splits.length > 0
+              ? [{ text: `Tainted: they complete your hand but villain makes the same hand, so the pot is split, not won: ${formatCards(splits)}.`, result: `-${splits.length}` }]
+              : []),
             ...(extra.length > 0 ? [{ text: `Cards that win without completing the draw: ${formatCards(extra)}.`, result: `+${extra.length}` }] : []),
             { text: 'Cards that put you ahead after the next card.', result: String(winning) },
             { text: 'With villain’s hand hidden the discount is a judgement. The more coordinated the board, the more you should take off.' },

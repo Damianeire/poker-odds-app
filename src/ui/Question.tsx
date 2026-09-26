@@ -234,6 +234,12 @@ export function Question({ instance, onResult, onNext, ghostMs, compact }: Props
                 <th>Exact</th>
                 <td>{p.choices ? p.choices[instance.answer] : formatValue(instance.answer, instance.unit)}</td>
               </tr>
+              {instance.alsoAccept && instance.alsoAccept.length > 0 && (
+                <tr>
+                  <th>Also accepted</th>
+                  <td>{instance.alsoAccept.map((a) => formatValue(a, instance.unit)).join(', ')}</td>
+                </tr>
+              )}
               {!exact && (
                 <tr>
                   <th>Tolerance</th>

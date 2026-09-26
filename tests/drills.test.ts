@@ -6,7 +6,7 @@ import { potOdds } from '../src/engine/potodds';
 import { formatCards } from '../src/engine/cards';
 import { evaluate, categoryOf, Category } from '../src/engine/evaluator';
 import { parseCards } from '../src/engine/cards';
-import { DRAW_TARGETS, dealDrawSpot, isGenuineDraw } from '../src/drills/deal';
+import { DRAW_TARGETS, boardMadeCards, dealDrawSpot, isGenuineDraw } from '../src/drills/deal';
 import { PRICE_OUT_SIZES } from '../src/drills/priceOut';
 
 const DIFFICULTIES: Difficulty[] = [1, 2, 3];
@@ -70,7 +70,8 @@ describe('drill catalogue', () => {
         for (let seed = 1; seed <= Math.min(20, SEEDS); seed++) {
           const inst = drill.generate(createRng(seed), 2);
           expect(grade(inst, inst.answer).correct).toBe(true);
-          expect(grade(inst, inst.answer + inst.tolerance + 1).correct).toBe(false);
+          const wrong = inst.answer + inst.tolerance + 1;
+          if (!inst.alsoAccept?.includes(wrong)) expect(grade(inst, wrong).correct).toBe(false);
         }
       });
 
@@ -445,5 +446,64 @@ describe('generators that once threw', () => {
     const drill = DRILLS.find((d) => d.id === 'dirty-outs')!;
     const inst = drill.generate(createRng(5055), 1);
     wellFormed(inst);
+  });
+});
+
+describe('board-made hands in count-outs', () => {
+  it('K3 on Q-Q-Q: 6 outs to a full house, the last queen is board-made and also accepted', () => {
+    const hero = parseCards('Kc 3h');
+    const board = parseCards('Qd Qc Qs');
+    const outs = detectOutsToCategory(hero, board, Category.FullHouse);
+    expect(outs.count).toBe(6);
+    expect(formatCards(boardMadeCards(hero, board, Category.FullHouse, outs))).toBe(formatCards(parseCards('Qh')));
+    const inst = {
+      answer: 6,
+      alsoAccept: [7],
+      tolerance: 0,
+      unit: 'count',
+    } as DrillInstance;
+    expect(grade(inst, 6).correct).toBe(true);
+    expect(grade(inst, 7).correct).toBe(true);
+    expect(grade(inst, 8).correct).toBe(false);
+  });
+
+  it('leeway only appears on full house questions, and always with a note in the working', () => {
+    const drill = DRILLS.find((d) => d.id === 'count-outs')!;
+    let seen = 0;
+    for (let seed = 1; seed <= 3000; seed++) {
+      const inst = drill.generate(createRng(seed), 2);
+      if (inst.alsoAccept) {
+        seen++;
+        expect(inst.prompt.text).toContain('full house');
+        expect(inst.explanation.steps.some((s) => s.text.startsWith('Not counted:'))).toBe(true);
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+});
+
+describe('dirty outs working', () => {
+  it('T5 vs 5J on A-2-3: the fours split, the tens win', () => {
+    const hero = parseCards('Tc 5d');
+    const villain = parseCards('5c Js');
+    const board = parseCards('Ad 2s 3d');
+    const clean = detectOutsVsHand(hero, villain, board);
+    expect(formatCards(clean.outs)).toBe(formatCards(parseCards('Td Th Ts')));
+    for (const four of parseCards('4c 4d 4h 4s')) {
+      expect(evaluate([...hero, ...board, four])).toBe(evaluate([...villain, ...board, four]));
+    }
+  });
+
+  it('every tainted card is listed once, as a loss or a split', () => {
+    const drill = DRILLS.find((d) => d.id === 'dirty-outs')!;
+    for (let seed = 1; seed <= 40; seed++) {
+      const inst = drill.generate(createRng(seed), 2);
+      const tainted = inst.explanation.steps.filter((s) => s.text.startsWith('Tainted'));
+      expect(tainted.length).toBeGreaterThan(0);
+      const raw = Number(inst.prompt.facts![0]!.value);
+      const off = tainted.reduce((n, s) => n + Number(s.result), 0);
+      const extra = inst.explanation.steps.find((s) => s.text.startsWith('Cards that win without'));
+      expect(raw + off + (extra ? Number(extra.result) : 0)).toBe(inst.answer);
+    }
   });
 });

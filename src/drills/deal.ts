@@ -49,6 +49,14 @@ export function isGenuineDraw(hero: readonly Card[], board: readonly Card[], tar
   });
 }
 
+/**
+ * Cards that reach the target but are not counted as outs because the board makes
+ * the same hand by itself, e.g. the last queen on Q-Q-Q gives everyone quads.
+ */
+export function boardMadeCards(hero: readonly Card[], board: readonly Card[], target: Category, outs: OutsResult): Card[] {
+  return outs.nonOuts.filter((c) => categoryOf(evaluate([...hero, ...board, c])) >= target);
+}
+
 function hasOtherDraw(hero: Card[], board: Card[], except: Category): boolean {
   for (const t of DRAW_TARGETS) {
     if (t.category === except) continue;
